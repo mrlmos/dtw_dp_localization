@@ -169,9 +169,9 @@ def main():
     # x2 = np.sin(2 * t + np.pi / 2)
     defasagem = 15
     x1 = pulse(100, 20, 4) + 0.4 * pulse(100, 30, 2)
-    x1 = 0.1 * np.random.randn(len(x1)) + x1
+    # x1 = 0.1 * np.random.randn(len(x1)) + x1
     x2 = pulse(100, 20, 4, phase=defasagem) + 0.4 * pulse(100, 30, 2, phase=defasagem)
-    x2 = 0.2 * np.random.randn(len(x2)) + x2
+    # x2 = 0.2 * np.random.randn(len(x2)) + x2
 
     costs = []
     values = range(1, 20)
@@ -181,20 +181,21 @@ def main():
         costs.append(cost)
 
     r = np.argmin(costs) + 1
+    r = 2
 
     path, cost = dtw(x1, x2, dist, radius=r)
     path = path[::-1]
     D = gen_cost_matrix(x1, x2, dist, radius=r)
 
-    plt.subplot(2, 2, 2)
-    plt.plot(values, costs, label="custo")
-    plt.title("Custo por valor de r")
-    plt.axvline(
-        defasagem, color="gray", linestyle="--", alpha=0.7, label="alinhamento ideal"
-    )
-    plt.xlabel(r"$r$")
-    plt.ylabel("Custo")
-    plt.legend()
+    # plt.subplot(2, 2, 2)
+    # plt.plot(values, costs, label="custo")
+    # plt.title("Custo por valor de r")
+    # plt.axvline(
+    #     defasagem, color="gray", linestyle="--", alpha=0.7, label="alinhamento ideal"
+    # )
+    # plt.xlabel(r"$r$")
+    # plt.ylabel("Custo")
+    # plt.legend()
 
     plt.subplot(2, 2, 1)
     plt.plot(x1, label="sinal 1")
@@ -208,7 +209,7 @@ def main():
     plt.title("sinais alinhados")
     plt.legend()
 
-    plt.subplot(2, 2, 4)
+    plt.subplot(2, 2, (2, 4))
     plt.imshow(np.transpose(D), origin="lower")
     plt.plot(path[:, 0], path[:, 1], color="red", linewidth=2)
     plt.title(f"custo = {cost:.2f} | raio = {r} | defasagem = {defasagem}")
