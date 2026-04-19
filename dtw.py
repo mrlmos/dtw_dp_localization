@@ -160,6 +160,31 @@ def pulse(length, center, width, amplitude=1.0, phase=0):
     return amplitude * np.exp(-0.5 * ((t - center - phase) / width) ** 2)
 
 
+def plot_dtw(x1, x2, dist, radius=None):
+    D = gen_cost_matrix(x1, x2, dist, radius=radius)
+    path, cost = dtw(x1, x2, dist, radius=radius)
+    path = path[::-1]
+
+    plt.subplot(2, 2, 1)
+    plt.plot(x1, label="sinal 1")
+    plt.plot(x2, label="sinal 2", linestyle="--")
+    plt.title("sinais originais")
+    plt.legend()
+
+    plt.subplot(2, 2, 3)
+    plt.plot(x1[path[:, 0]], label="sinal 1")
+    plt.plot(x2[path[:, 1]], label="sinal 2", linestyle="--")
+    plt.title("sinais alinhados")
+    plt.legend()
+
+    plt.subplot(2, 2, (2, 4))
+    plt.imshow(np.transpose(D), origin="lower")
+    plt.plot(path[:, 0], path[:, 1], color="red", linewidth=2)
+    plt.title(f"custo = {cost:.2f} | raio = {radius}")
+    plt.xlabel("sinal 1")
+    plt.ylabel("sinal 2")
+
+
 def main():
     plt.rcParams.update({"font.size": 14})
     matplotlib.use("Qt5Agg")
