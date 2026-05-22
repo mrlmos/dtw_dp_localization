@@ -8,6 +8,31 @@ import matplotlib.pyplot as plt
 
 
 # ---------------------------------------------------------------------------
+# CONSTANTS
+# ---------------------------------------------------------------------------
+
+C_AIR = 299_705_000.0  # ~c * (1/1.0001), refractive index of air ≈ 1.0001
+
+# Antenna positions [x, y, z] in meters.
+# CH1 → Antena 1, CH2 → Antena 2, CH3 → Antena 3, CH4 → Antena 4
+ANTENNA_POSITIONS = {
+    "CH1": np.array([0.0, 0.0, 0.97]),
+    "CH2": np.array([2.0, 0.0, 0.77]),
+    "CH3": np.array([2.0, 2.0, 0.57]),
+    "CH4": np.array([0.0, 2.0, 0.47]),
+}
+
+# PD source positions [x, y, z] in meters, keyed by antenna folder name
+# (each folder = experiments where the PD was nearest to that antenna)
+SOURCE_POSITIONS = {
+    "antena1": np.array([0.5, 0.5, 0.62]),
+    "antena2": np.array([1.5, 0.5, 0.62]),
+    "antena3": np.array([1.5, 1.5, 0.62]),
+    "antena4": np.array([0.5, 1.5, 0.62]),
+}
+
+
+# ---------------------------------------------------------------------------
 # Data structure
 # ---------------------------------------------------------------------------
 
@@ -33,6 +58,37 @@ class Experiment:
     def ch_names(self):
         return list(self.channels.keys())
 
+    @property
+    def source_position(self) -> np.ndarray:
+        """3D position [x, y, z] of the PD source for this experiment set (meters)."""
+        return SOURCE_POSITIONS[self.antenna]
+
+    @property
+    def distances(self) -> dict:
+        """
+        Euclidean distance (meters) from the PD source to each antenna/channel.
+
+        Returns
+        -------
+        dict: {"CH1": float, "CH2": float, "CH3": float, "CH4": float}
+        """
+        return {
+            ch: float(np.linalg.norm(ANTENNA_POSITIONS[ch] - self.source_position))
+            for ch in ANTENNA_POSITIONS
+        }
+
+    @property
+    def travel_times(self) -> dict:
+        """
+        Time (seconds) for the EM signal to travel from the PD source to each
+        antenna/channel, assuming propagation in air at speed C_AIR.
+
+        Returns
+        -------
+        dict: {"CH1": float, "CH2": float, "CH3": float, "CH4": float}
+        """
+        return {ch: d / C_AIR for ch, d in self.distances.items()}
+
     def time(self, ch="CH1") -> np.ndarray:
         """Return time array for a channel as numpy array."""
         return self.channels[ch]["TIME"].values
@@ -56,7 +112,7 @@ class Experiment:
         fig.suptitle(self.label, fontsize=13, fontweight="bold")
         for ax, ch in zip(axes, chs):
             ax.plot(
-                self.time(ch),
+                # self.time(ch),
                 self.voltage(ch),
                 color=colors.get(ch, "black"),
                 linewidth=1,
