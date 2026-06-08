@@ -1,28 +1,18 @@
 import numpy as np
-from icecream import ic
 import matplotlib.pyplot as plt
 from .experiment_loader import (
-    get_experiment,
     load_experiments,
     Experiment,
 )
 from .preprocessing import (
     cum_energy_exp,
     deriv_estimation,
-    pole_finding,
-    relu_energy,
-    energy_criterion,
-    filtro_derivada,
-    akaike_info,
-    pole_finding,
 )
-from .localizacao import batch_localization, tdoa_2d
+from .localizacao import batch_localization
 from .results import (
     remove_outliers,
     to_dataframe,
-    export_xlsx,
     print_summary,
-    plot_location_scatter,
     mean_estimates,
 )
 from .dtw import dist
@@ -41,14 +31,6 @@ OUTPUT_PATH = "/home/murilo/dev/python/tcc/dtw/result_sheets/"
 
 def main():
     experiments = load_experiments(base_dir=DATA_PATH, antennas=None)
-    # exp = get_experiment(experiments, antenna="antena1", index=2)
-    # voltages = akaike_info(exp)
-    # fig, axs = plt.subplots(4, 1)
-    # for ax, v in zip(axs, voltages):
-    #     ax.plot(v)
-    #     ax.axvline(np.argmin(v), c="red", label=f"{np.argmin(v)}")
-    #     ax.legend()
-    # plt.show()
 
     results = batch_localization(
         experiments=experiments,
@@ -62,7 +44,6 @@ def main():
     df = to_dataframe(results)
     df_clean = remove_outliers(df)
     print_summary(df_clean)
-    # export_xlsx(df, path=OUTPUT_PATH + "results_diff_sem_outliers.xlsx")
     print(mean_estimates(df_clean))
 
     # plot_location_scatter(results)
