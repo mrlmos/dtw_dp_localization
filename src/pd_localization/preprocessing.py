@@ -123,13 +123,12 @@ def derivative_threshold(x: np.ndarray) -> np.float64:
 
     x_noise = x[:split_index]
     max_deriv = np.max(filtro_derivada(x_noise))
-    return max_deriv * 50, split_index
+    return max_deriv * 50
 
 
 def deriv_estimation(x: np.ndarray) -> int:
     x_deriv = filtro_derivada(x)
-    threshold, idx = derivative_threshold(x)
-    print("Threshold value found: ", threshold, "\t Index: ", idx)
+    threshold = derivative_threshold(x)
     idx = np.argmax(x_deriv > threshold)
     # idx = np.argmax(x_deriv > 0.04)  # TODO: Mudar
     return idx - 1
