@@ -1,12 +1,12 @@
 import numpy as np
 from icecream import ic
 import matplotlib.pyplot as plt
-from pd_localization.experiment_loader import (
+from .experiment_loader import (
     get_experiment,
     load_experiments,
     Experiment,
 )
-from pd_localization.preprocessing import (
+from .preprocessing import (
     cum_energy_exp,
     deriv_estimation,
     pole_finding,
@@ -16,8 +16,8 @@ from pd_localization.preprocessing import (
     akaike_info,
     pole_finding,
 )
-from pd_localization.localizacao import batch_localization, tdoa_2d
-from pd_localization.results import (
+from .localizacao import batch_localization, tdoa_2d
+from .results import (
     remove_outliers,
     to_dataframe,
     export_xlsx,
@@ -25,7 +25,7 @@ from pd_localization.results import (
     plot_location_scatter,
     mean_estimates,
 )
-from pd_localization.dtw import dist
+from .dtw import dist
 
 
 def check_ref(exp: Experiment, ref_index: int):

@@ -16,12 +16,12 @@ dependencies = [
 ]
 
 [project.scripts]
-my_project = "pd_localization.main:main" # Altere "my_project" para o nome do seu projeto
+my_project = "pd_localization.main:main"
 
 
 [tool.ruff]
 line-length = 88
-target-version = "py313" # Altere "py312" para a versão do Python que você deseja usar
+target-version = "py313"
 fix = true
 show-fixes = true
 indent-width = 4
@@ -34,7 +34,7 @@ line-ending = "lf"
 docstring-code-format = true
 
 [tool.ruff.lint.isort]
-known-first-party = ["pd_localization"] # Altere "my_project" para o nome do seu projeto
+known-first-party = ["pd_localization"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
