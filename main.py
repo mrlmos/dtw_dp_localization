@@ -5,10 +5,12 @@ from experiment_loader import get_experiment, load_experiments, Experiment
 from preprocessing import (
     cum_energy_exp,
     deriv_estimation,
+    pole_finding,
     relu_energy,
     energy_criterion,
     filtro_derivada,
     akaike_info,
+    pole_finding,
 )
 from localizacao import batch_localization, tdoa_2d
 from results import (
@@ -57,8 +59,8 @@ def main():
     df_clean = remove_outliers(df)
     print_summary(df_clean)
     # export_xlsx(df, path=OUTPUT_PATH + "results_diff_sem_outliers.xlsx")
-    print(mean_estimates(df))
-    #
+    print(mean_estimates(df_clean))
+
     # plot_location_scatter(results)
     # plt.show()
 

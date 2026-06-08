@@ -138,7 +138,7 @@ def estimate_taus(
         #     taus[ch] = tdoa_min / sample_rate + erro_osci
         # else:
         #     taus[ch] = tdoa_max / sample_rate + erro_osci
-        taus[ch] = estimative / sample_rate + erro_osci
+        taus[ch] = estimative / sample_rate
     return taus
 
 
