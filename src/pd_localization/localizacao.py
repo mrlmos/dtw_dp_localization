@@ -105,53 +105,105 @@ def tdoa_3d(vars, taus: dict) -> list:
 # -----------------------------------
 
 
-def estimate_taus_dtw(
-    voltages: list[np.ndarray],
-    ref_index: int,
-    ref_arrival: int,
-    sample_rate: float,
-    travel_times: dict,
+def true_taus(experiments: list[Experiment]) -> list[dict]:
+    refs = {"antena1": 0, "antena2": 1, "antena3": 2, "antena4": 3}
+    ch_names = ["CH1", "CH2", "CH3", "CH4"]
+    result = []
+    for exp in experiments:
+        ref_index = refs[exp.antenna]
+        ref_ch = ch_names[ref_index]
+        travel = exp.travel_times
+        ref_time = travel[ref_ch]
+        taus = {ch: t - ref_time for ch, t in travel.items()}
+        result.append(taus)
+    return result
+
+
+# ------------ FACTORIES -------------
+
+
+def tau_estim_dtw(
+    pre_processing: Callable,
+    ref_estimator: Callable,
     distance_func: Callable,
     radius: int = 24,
-) -> dict:
-    v_ref = voltages[ref_index]
-    ch_names = [f"CH{i + 1}" for i in range(len(voltages))]
-    taus = {}
-    # wave_delay = np.array(list(travel_times.values())) * sample_rate
-    # tdoa_true = np.abs(wave_delay - wave_delay[ref_index])
-    # erro_osci = 0.4e-9
-    # erro_oleo = 0.2e-9
+) -> Callable:
+    refs = {"antena1": 0, "antena2": 1, "antena3": 2, "antena4": 3}
 
-    for i, (v, ch) in enumerate(zip(voltages, ch_names)):
-        if i == ref_index:
-            taus[ch] = 0.0
-            continue
-        D = gen_cost_matrix(v_ref, v, distance_func, radius=radius)
-        path = backtracking(D)[::-1]
-        linked = [pj for pi, pj in path if pi == ref_arrival]
-        linked_diffs = np.abs(v_ref[ref_arrival] - v[linked])
-        estimative = np.abs(np.argmin(linked_diffs) + linked[0] - ref_arrival)
-        taus[ch] = estimative / sample_rate
-    return taus
+    def _estimate(exp: Experiment) -> dict:
+        voltages = pre_processing(exp)
+        ref_index = refs[exp.antenna]
+        ref_arrival = ref_estimator(voltages[ref_index])
+
+        v_ref = voltages[ref_index]
+        ch_names = [f"CH{i + 1}" for i in range(len(voltages))]
+
+        taus = {}
+        for i, (v, ch) in enumerate(zip(voltages, ch_names)):
+            if i == ref_index:
+                taus[ch] = 0.0
+                continue
+            D = gen_cost_matrix(v_ref, v, distance_func, radius=radius)
+            path = backtracking(D)[::-1]
+            linked = [pj for pi, pj in path if pi == ref_arrival]
+            linked_diffs = np.abs(v_ref[ref_arrival] - v[linked])
+            estimative = np.abs(np.argmin(linked_diffs) + linked[0] - ref_arrival)
+            taus[ch] = estimative / exp.sample_rate
+        return taus
+
+    return _estimate
 
 
-def estimate_taus_raw(
-    voltages: list[np.ndarray],
-    ref_voltage_index: int,
-    sample_rate: float,
-    gcc_func: Callable,
-) -> dict:
-    v_ref = voltages[ref_voltage_index]
-    ch_names = [f"CH{i + 1}" for i in range(len(voltages))]
-    taus = {}
-    for i, (v, ch) in enumerate(zip(voltages, ch_names)):
-        if i == ref_voltage_index:
-            taus[ch] = 0.0
-            continue
-        cross_corr = gcc_func(v_ref, v)
-        estimative = np.abs(np.argmax(np.abs(cross_corr)) - len(v_ref) + 1)
-        taus[ch] = estimative / sample_rate
-    return taus
+def tau_estim_gcc(pre_processing: Callable, gcc_func: Callable) -> Callable:
+    refs = {"antena1": 0, "antena2": 1, "antena3": 2, "antena4": 3}
+
+    def _estimate(exp: Experiment) -> dict:
+        voltages = pre_processing(exp)
+        ref_index = refs[exp.antenna]
+
+        v_ref = voltages[ref_index]
+        ch_names = [f"CH{i + 1}" for i in range(len(voltages))]
+        taus = {}
+        for i, (v, ch) in enumerate(zip(voltages, ch_names)):
+            if i == ref_index:
+                taus[ch] = 0.0
+                continue
+            cross_corr = gcc_func(v_ref, v)
+            estimative = np.abs(np.argmax(np.abs(cross_corr)) - len(v_ref) + 1)
+            taus[ch] = estimative / exp.sample_rate
+        return taus
+
+    return _estimate
+
+
+def tau_estim_energy(pre_processing: Callable, knee_estimator: Callable) -> Callable:
+    refs = {"antena1": 0, "antena2": 1, "antena3": 2, "antena4": 3}
+
+    def _estimate(exp: Experiment) -> dict:
+        voltages = pre_processing(exp)
+        ref_index = refs[exp.antenna]
+
+        v_ref = voltages[ref_index]
+        vref_knee = knee_estimator(v_ref)
+        ch_names = [f"CH{i + 1}" for i in range(len(voltages))]
+        taus = {}
+        for i, (v, ch) in enumerate(zip(voltages, ch_names)):
+            if i == ref_index:
+                taus[ch] = 0.0
+                continue
+            knee = knee_estimator(v)
+            estimative = np.abs(knee - vref_knee)
+            taus[ch] = estimative / exp.sample_rate
+        return taus
+
+    return _estimate
+
+
+def batch_tau_estimates(
+    experiments: list[Experiment],
+    estimator: Callable,
+) -> list[dict]:
+    return [estimator(exp) for exp in experiments]
 
 
 # -----------------------------------
@@ -160,39 +212,8 @@ def estimate_taus_raw(
 
 
 def estimate_location(
-    exp: Experiment,
-    pre_processing: Callable,
-    ref_estimator: Callable,
-    distance: Callable,
-    radius: int = 24,
-    mode: str = "2d",
-    dtw: bool = True,
-    gcc_func: Callable | None = None,
+    exp: Experiment, taus: dict, mode: str = "2d"
 ) -> LocalizationResult:
-    refs = {"antena1": 0, "antena2": 1, "antena3": 2, "antena4": 3}
-    voltages = pre_processing(exp)
-    ref_index = refs[exp.antenna]
-    v_ref = voltages[ref_index]
-    ref_arrival = ref_estimator(v_ref)
-    if dtw:
-        taus = estimate_taus_dtw(
-            voltages,
-            ref_index,
-            ref_arrival,
-            exp.sample_rate,
-            exp.travel_times,
-            distance,
-        )
-    elif gcc_func is None:
-        raise ValueError("if dtw is false, a gcc_func Callable shoud be provided.")
-    else:
-        taus = estimate_taus_raw(
-            voltages,
-            ref_index,
-            exp.sample_rate,
-            gcc_func,
-        )
-
     t_mid = np.sqrt(2) / v_e
     if mode == "2d":
         p0_2d = [1.0, 1.0, t_mid]
@@ -206,16 +227,14 @@ def estimate_location(
     refs = {"antena1": 0, "antena2": 1, "antena3": 2, "antena4": 3}
     ch_names = ["CH1", "CH2", "CH3", "CH4"]
     ref_ch = ch_names[refs[exp.antenna]]
-
     non_ref_chs = [ch for ch in ch_names if ch != ref_ch]
+
     taus_true_samples = {
         ch: val for ch, val in zip(non_ref_chs, TDOA_SAMPLES[exp.antenna])
     }
-
     taus_estimated_samples = {
         ch: tau * exp.sample_rate for ch, tau in taus.items() if ch != ref_ch
     }
-
     return LocalizationResult(
         exp_antenna=exp.antenna,
         exp_index=exp.index,
@@ -232,25 +251,10 @@ def estimate_location(
 
 def batch_localization(
     experiments: list[Experiment],
-    pre_processing: Callable,
-    ref_estimator: Callable,
-    distance: Callable,
-    radius: int = 24,
+    taus: list[dict],
     mode: str = "2d",
-    dtw: bool = True,
-    gcc_func: Callable | None = None,
 ) -> list[LocalizationResult]:
     results = []
-    for exp in experiments:
-        result = estimate_location(
-            exp,
-            pre_processing,
-            ref_estimator,
-            distance,
-            radius=radius,
-            mode=mode,
-            dtw=dtw,
-            gcc_func=gcc_func,
-        )
-        results.append(result)
+    for exp, t in zip(experiments, taus):
+        results.append(estimate_location(exp, t, mode=mode))
     return results

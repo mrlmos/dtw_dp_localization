@@ -22,6 +22,7 @@ DATA_PATH = "/home/murilo/dev/python/tcc/dados_dp/"
 def main():
     experiments = load_experiments(DATA_PATH)
     exp = get_experiment(experiments, "antena4", 1)
+    print("T_amos:     ", 1 / exp.sample_rate * 1e9, " ns")
     voltages = cum_energy_exp(exp)
     v = voltages[1]
 
