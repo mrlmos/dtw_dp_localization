@@ -153,6 +153,22 @@ wheels = [
 ]
 
 [[package]]
+name = "gdtw"
+version = "1.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c7/c9/4b02cac0a30bb0deb644964d9ac937600d95b5f7e707e64bd3db7f06fcd2/gdtw-1.2.1.tar.gz", hash = "sha256:670b17f6dfe12c9657d187f4bbda8b77789e324dc0d882999c9b61d95237748a", size = 19967, upload-time = "2026-05-21T07:22:04.178Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e6/f8/6d9b6fe947ada93f9387e9462ef4ea736fc22090e79ea5c5b38905ecda97/gdtw-1.2.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:6b80d9e306a68b2a4734a43289e06a11b6f2dec9ee502a82ac87651090e8c1d8", size = 26586, upload-time = "2026-05-21T07:21:38.977Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/4a/6a51c72f604937733d980a690d939151159cdaa32ecfa0aa5838da01e949/gdtw-1.2.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:4c548bf6acdaa7373d5974e2672480f745b2092ac116f7ec51d7b208133066ae", size = 77338, upload-time = "2026-05-21T07:21:40.455Z" },
+    { url = "https://files.pythonhosted.org/packages/92/59/4638022ed561f1eb3b0f4b91767595c1ae524e6d71be0a9154055078f954/gdtw-1.2.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:cb414b733bc3cb200a0c6683b831f30dc6b1fb071b9d44a7419e42be99ae5637", size = 78923, upload-time = "2026-05-21T07:21:41.797Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/22/904976466e314f1a7c589aeeb4348a0522100817fb15b2298e2809c2a3ec/gdtw-1.2.1-cp313-cp313-win32.whl", hash = "sha256:37e63a58017b0a5d5a092b96cfc7bb8c9bbe486f54e88c13626836afa715967f", size = 27057, upload-time = "2026-05-21T07:21:43.077Z" },
+    { url = "https://files.pythonhosted.org/packages/de/7f/539d64e8506a4b60f879416d8d0ec1fa068cfcb2d19e3e22199b4bc93750/gdtw-1.2.1-cp313-cp313-win_amd64.whl", hash = "sha256:540dada859ef3617c8d71ca766ef97a6e2dd96263a3738cd940385b2ea4fba92", size = 28389, upload-time = "2026-05-21T07:21:44.291Z" },
+]
+
+[[package]]
 name = "icecream"
 version = "2.1.10"
 source = { registry = "https://pypi.org/simple" }
@@ -468,6 +484,7 @@ name = "pd-localization"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "gdtw" },
     { name = "icecream" },
     { name = "ipython" },
     { name = "matplotlib" },
@@ -480,6 +497,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "gdtw", specifier = ">=1.2.1" },
     { name = "icecream", specifier = ">=2.1.10" },
     { name = "ipython", specifier = ">=9.13.0" },
     { name = "matplotlib", specifier = ">=3.10.8" },

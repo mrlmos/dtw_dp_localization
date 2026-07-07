@@ -5,6 +5,7 @@ description = "Tools for Lozalization of Partial Discharge Ocurrances"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "gdtw>=1.2.1",
     "icecream>=2.1.10",
     "ipython>=9.13.0",
     "matplotlib>=3.10.8",
@@ -16,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-my_project = "pd_localization.main:main"
+pd_localization = "pd_localization.main:main"
 
 
 [tool.ruff]

@@ -126,18 +126,39 @@ def derivative_threshold(x: np.ndarray) -> np.float64:
     return max_deriv * 50
 
 
-def deriv_estimation(x: np.ndarray) -> int:
+def deriv_estimation(x: np.ndarray, offset: int) -> int:
     x_deriv = filtro_derivada(x)
     threshold = derivative_threshold(x)
     idx = np.argmax(x_deriv > threshold)
     # idx = np.argmax(x_deriv > 0.04)  # TODO: Mudar
-    return idx - 1
+    return idx + offset
+
+
+def curv_detection(x: np.ndarray, offset: int = 0) -> int:
+    dv = np.convolve(x, [1, -1], mode="same")
+    ddv = np.convolve(x, [1, -2, 1], mode="same")
+    ddv[-1] = 0.0
+
+    kf = ddv / ((1 + dv**2) ** (3 / 2))
+    kf /= np.max(kf)
+    return np.argmax(kf >= 0.3)
+
+
+def zero_virtual(v: np.ndarray, offset: int = 0) -> int:
+    x = np.arange(len(v))
+    y1 = 0.3
+    y2 = 0.6
+    A = np.argmax(v >= y1)
+    B = np.argmax(v >= y2)
+    m = (y2 - y1) / (B - A)
+    b = y1 - m * A
+    line = x * m + b
+    return np.argmax(line >= 0)
 
 
 def pole_finding(x: np.ndarray) -> int:
     x_cum = np.cumsum(x**2)
     x_cum /= np.max(x_cum)
-    print(np.max(x_cum))
     min_index = 10
     max_index = np.argmax(x_cum > 0.8)
     x_axis = np.arange(len(x))

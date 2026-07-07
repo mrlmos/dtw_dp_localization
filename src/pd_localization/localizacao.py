@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 from icecream import ic
 from dataclasses import dataclass, field
@@ -103,7 +105,7 @@ def tdoa_3d(vars, taus: dict) -> list:
 # -----------------------------------
 
 
-def estimate_taus(
+def estimate_taus_dtw(
     voltages: list[np.ndarray],
     ref_index: int,
     ref_arrival: int,
@@ -130,13 +132,25 @@ def estimate_taus(
         linked_diffs = np.abs(v_ref[ref_arrival] - v[linked])
         estimative = np.abs(np.argmin(linked_diffs) + linked[0] - ref_arrival)
         taus[ch] = estimative / sample_rate
+    return taus
 
-        # tdoa_min = np.abs(np.min(linked) - ref_arrival)
-        # tdoa_max = np.abs(np.max(linked) - ref_arrival)
-        # if np.abs(tdoa_true[i] - tdoa_min) < np.abs(tdoa_true[i] - tdoa_max):
-        #     taus[ch] = tdoa_min / sample_rate + erro_osci
-        # else:
-        #     taus[ch] = tdoa_max / sample_rate + erro_osci
+
+def estimate_taus_raw(
+    voltages: list[np.ndarray],
+    ref_voltage_index: int,
+    sample_rate: float,
+    gcc_func: Callable,
+) -> dict:
+    v_ref = voltages[ref_voltage_index]
+    ch_names = [f"CH{i + 1}" for i in range(len(voltages))]
+    taus = {}
+    for i, (v, ch) in enumerate(zip(voltages, ch_names)):
+        if i == ref_voltage_index:
+            taus[ch] = 0.0
+            continue
+        cross_corr = gcc_func(v_ref, v)
+        estimative = np.abs(np.argmax(np.abs(cross_corr)) - len(v_ref) + 1)
+        taus[ch] = estimative / sample_rate
     return taus
 
 
@@ -150,23 +164,40 @@ def estimate_location(
     pre_processing: Callable,
     ref_estimator: Callable,
     distance: Callable,
+    offset: int,
     radius: int = 24,
     mode: str = "2d",
+    dtw: bool = True,
+    gcc_func: Callable | None = None,
 ) -> LocalizationResult:
     refs = {"antena1": 0, "antena2": 1, "antena3": 2, "antena4": 3}
     voltages = pre_processing(exp)
     ref_index = refs[exp.antenna]
     v_ref = voltages[ref_index]
-    ref_arrival = ref_estimator(v_ref)
-    taus = estimate_taus(
-        voltages, ref_index, ref_arrival, exp.sample_rate, exp.travel_times, distance
-    )
+    ref_arrival = ref_estimator(v_ref, offset)
+    if dtw:
+        taus = estimate_taus_dtw(
+            voltages,
+            ref_index,
+            ref_arrival,
+            exp.sample_rate,
+            exp.travel_times,
+            distance,
+        )
+    elif gcc_func is None:
+        raise ValueError("if dtw is false, a gcc_func Callable shoud be provided.")
+    else:
+        taus = estimate_taus_raw(
+            voltages,
+            ref_index,
+            exp.sample_rate,
+            gcc_func,
+        )
 
     t_mid = np.sqrt(2) / v_e
     if mode == "2d":
         p0_2d = [1.0, 1.0, t_mid]
         sol, info, ier, msg = fsolve(tdoa_2d, p0_2d, full_output=True, args=(taus,))
-        # print(tdoa_2d([1.0, 1.0, t_mid], taus))
         true_pos = SOURCE_POSITIONS[exp.antenna][:-1]
     else:
         p0_3d = [1.0, 1.0, 0.5, t_mid]
@@ -207,11 +238,22 @@ def batch_localization(
     distance: Callable,
     radius: int = 24,
     mode: str = "2d",
+    offset: int = 0,
+    dtw: bool = True,
+    gcc_func: Callable | None = None,
 ) -> list[LocalizationResult]:
     results = []
     for exp in experiments:
         result = estimate_location(
-            exp, pre_processing, ref_estimator, distance, radius=radius, mode=mode
+            exp,
+            pre_processing,
+            ref_estimator,
+            distance,
+            offset,
+            radius=radius,
+            mode=mode,
+            dtw=dtw,
+            gcc_func=gcc_func,
         )
         results.append(result)
     return results
