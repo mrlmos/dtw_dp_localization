@@ -164,7 +164,6 @@ def estimate_location(
     pre_processing: Callable,
     ref_estimator: Callable,
     distance: Callable,
-    offset: int,
     radius: int = 24,
     mode: str = "2d",
     dtw: bool = True,
@@ -174,7 +173,7 @@ def estimate_location(
     voltages = pre_processing(exp)
     ref_index = refs[exp.antenna]
     v_ref = voltages[ref_index]
-    ref_arrival = ref_estimator(v_ref, offset)
+    ref_arrival = ref_estimator(v_ref)
     if dtw:
         taus = estimate_taus_dtw(
             voltages,
@@ -238,7 +237,6 @@ def batch_localization(
     distance: Callable,
     radius: int = 24,
     mode: str = "2d",
-    offset: int = 0,
     dtw: bool = True,
     gcc_func: Callable | None = None,
 ) -> list[LocalizationResult]:
@@ -249,7 +247,6 @@ def batch_localization(
             pre_processing,
             ref_estimator,
             distance,
-            offset,
             radius=radius,
             mode=mode,
             dtw=dtw,
