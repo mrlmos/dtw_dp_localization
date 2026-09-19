@@ -134,6 +134,12 @@ def deriv_estimation(x: np.ndarray) -> int:
     return idx
 
 
+def tarso_method(x: np.ndarray) -> int:
+    line = np.linspace(0, 1, len(x))
+    idx = np.argmax(line - x)
+    return idx
+
+
 def curv_detection(x: np.ndarray) -> int:
     dv = np.convolve(x, [1, -1], mode="same")
     ddv = np.convolve(x, [1, -2, 1], mode="same")

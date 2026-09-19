@@ -52,6 +52,57 @@ def gen_cost_matrix(x1, x2, dist, radius=None, log=False):
     return D[1:, 1:]
 
 
+def fast_gen_cost_matrix(
+    x1: np.ndarray,
+    x2: np.ndarray,
+    dist=None,
+    radius: int | None = None,
+) -> np.ndarray:
+    """
+    Fast DTW accumulated cost matrix.
+
+    Parameters
+    ----------
+    x1, x2 : ndarray
+        Input sequences.
+    radius : int or None
+        Sakoe-Chiba radius. If None, computes the full DTW matrix.
+
+    Returns
+    -------
+    D : ndarray, shape (len(x1), len(x2))
+        Accumulated DTW cost matrix.
+    """
+    N = len(x1)
+    M = len(x2)
+
+    dist_mat = (x1[:, None] - x2[None, :]) ** 2
+
+    D = np.full((N + 1, M + 1), np.inf)
+    D[0, 0] = 0.0
+
+    for i in range(1, N + 1):
+        D_prev = D[i - 1]
+        D_curr = D[i]
+        dist_row = dist_mat[i - 1]
+
+        if radius is None:
+            j_min = 1
+            j_max = M
+        else:
+            j_min = max(1, i - radius)
+            j_max = min(M, i + radius)
+
+        for j in range(j_min, j_max + 1):
+            D_curr[j] = dist_row[j - 1] + min(
+                D_prev[j - 1],  # diagonal
+                D_prev[j],  # up
+                D_curr[j - 1],  # left
+            )
+
+    return D[1:, 1:]
+
+
 def dtw(x1, x2, dist, return_path=True, radius=None):
     """
     Computes the Dynamic Time Warping distance and optimal alignment path
@@ -81,8 +132,7 @@ def dtw(x1, x2, dist, return_path=True, radius=None):
     cost : float
         Total accumulated DTW cost, given by D[N-1, M-1].
     """
-    D = gen_cost_matrix(x1, x2, dist, radius=radius)
-
+    D = fast_gen_cost_matrix(x1, x2, radius=radius)
     path = backtracking(D)
 
     if return_path:
@@ -132,12 +182,12 @@ def backtracking(cost_matrix, return_counts=False):
         return np.array(path)
 
 
-def my_sakoe_chiba(N, M, radius=1):
+def my_sakoe_chiba(N, M, radius=1) -> np.ndarray:
     mask = np.zeros((N, M), dtype=bool)
     for i in range(N):
         lower = max(0, i - radius)
         upper = min(M, i + radius)
-        mask[i, lower : upper + 1] = True
+        mask[i, lower : upper + 1] = np.True_
     return mask
 
 
@@ -146,71 +196,72 @@ def mask_print(mask):
         print(row)
 
 
-def plot_dtw(x1, x2, dist, radius=None):
-    import matplotlib.gridspec as gridspec
-
-    D = gen_cost_matrix(x1, x2, dist, radius=radius)
-    path, cost = dtw(x1, x2, dist, radius=radius)
-    path = path[::-1]
-
-    # Cumulative cost along the path
-    path_costs = [D[i, j] for i, j in path]
-
-    fig = plt.figure(figsize=(14, 10))
-    gs = gridspec.GridSpec(
-        3, 2, figure=fig, height_ratios=[2, 2, 2], hspace=0.4, wspace=0.3
-    )
-
-    ax1 = fig.add_subplot(gs[0, 0])
-    ax1.plot(x1, label="sinal 1")
-    ax1.plot(x2, label="sinal 2", linestyle="--")
-    ax1.set_title("sinais originais")
-    ax1.legend()
-
-    ax2 = fig.add_subplot(gs[1, 0])
-    ax2.plot(x1[path[:, 0]], label="sinal 1")
-    ax2.plot(x2[path[:, 1]], label="sinal 2", linestyle="--")
-    ax2.set_title("sinais alinhados")
-    ax2.legend()
-
-    ax3 = fig.add_subplot(gs[0:2, 1])
-    ax3.imshow(np.transpose(D), origin="lower")
-    ax3.plot(path[:, 0], path[:, 1], color="red", linewidth=2)
-    ax3.set_title(f"custo = {cost:.2f} | raio = {radius}")
-    ax3.set_xlabel("sinal 1")
-    ax3.set_ylabel("sinal 2")
-
-    ax4 = fig.add_subplot(gs[2, :])
-    ax4.plot(path_costs, color="darkorange")
-    ax4.set_title("custo acumulado ao longo do caminho")
-    ax4.set_xlabel("passo do caminho")
-    ax4.set_ylabel("custo")
-
-
 # def plot_dtw(x1, x2, dist, radius=None):
+#     import matplotlib.gridspec as gridspec
+#
 #     D = gen_cost_matrix(x1, x2, dist, radius=radius)
 #     path, cost = dtw(x1, x2, dist, radius=radius)
 #     path = path[::-1]
 #
-#     plt.figure(figsize=(14, 8))
-#     plt.subplot(2, 2, 1)
-#     plt.plot(x1, label="sinal 1")
-#     plt.plot(x2, label="sinal 2", linestyle="--")
-#     plt.title("sinais originais")
-#     plt.legend()
+#     # Cumulative cost along the path
+#     path_costs = [D[i, j] for i, j in path]
 #
-#     plt.subplot(2, 2, 3)
-#     plt.plot(x1[path[:, 0]], label="sinal 1")
-#     plt.plot(x2[path[:, 1]], label="sinal 2", linestyle="--")
-#     plt.title("sinais alinhados")
-#     plt.legend()
+#     fig = plt.figure(figsize=(14, 10))
+#     gs = gridspec.GridSpec(
+#         3, 2, figure=fig, height_ratios=[2, 2, 2], hspace=0.4, wspace=0.3
+#     )
 #
-#     plt.subplot(2, 2, (2, 4))
-#     plt.imshow(np.transpose(D), origin="lower")
-#     plt.plot(path[:, 0], path[:, 1], color="red", linewidth=2)
-#     plt.title(f"custo = {cost:.2f} | raio = {radius}")
-#     plt.xlabel("sinal 1")
-#     plt.ylabel("sinal 2")
+#     ax1 = fig.add_subplot(gs[0, 0])
+#     ax1.plot(x1, label="sinal 1")
+#     ax1.plot(x2, label="sinal 2", linestyle="--")
+#     ax1.set_title("sinais originais")
+#     ax1.legend()
+#
+#     ax2 = fig.add_subplot(gs[1, 0])
+#     ax2.plot(x1[path[:, 0]], label="sinal 1")
+#     ax2.plot(x2[path[:, 1]], label="sinal 2", linestyle="--")
+#     ax2.set_title("sinais alinhados")
+#     ax2.legend()
+#
+#     ax3 = fig.add_subplot(gs[0:2, 1])
+#     ax3.imshow(np.transpose(D), origin="lower")
+#     ax3.plot(path[:, 0], path[:, 1], color="red", linewidth=2)
+#     ax3.set_title(f"custo = {cost:.2f} | raio = {radius}")
+#     ax3.set_xlabel("sinal 1")
+#     ax3.set_ylabel("sinal 2")
+#
+#     ax4 = fig.add_subplot(gs[2, :])
+#     ax4.plot(path_costs, color="darkorange")
+#     ax4.set_title("custo acumulado ao longo do caminho")
+#     ax4.set_xlabel("passo do caminho")
+#     ax4.set_ylabel("custo")
+
+
+def plot_dtw(x1, x2, dist, radius=None):
+    D = gen_cost_matrix(x1, x2, dist, radius=radius)
+    path, cost = dtw(x1, x2, dist, radius=radius)
+    path = path[::-1]
+
+    plt.figure(figsize=(12, 8))
+    plt.subplot(2, 2, 1)
+    plt.plot(x1, label="sinal 1")
+    plt.plot(x2, label="sinal 2", linestyle="--")
+    plt.title("sinais originais")
+    plt.legend()
+
+    plt.subplot(2, 2, 3)
+    plt.plot(x1[path[:, 0]], label="sinal 1")
+    plt.plot(x2[path[:, 1]], label="sinal 2", linestyle="--")
+    plt.title("sinais alinhados")
+    plt.legend()
+
+    plt.subplot(2, 2, (2, 4))
+    plt.imshow(np.transpose(D), origin="lower")
+    plt.plot(path[:, 0], path[:, 1], color="red", linewidth=2)
+    # plt.title(f"custo = {cost:.2f} | raio = {radius}")
+    plt.title("Matriz de custos acumulados")
+    plt.xlabel("sinal 1")
+    plt.ylabel("sinal 2")
 
 
 def pulse(length, center, width, amplitude=1.0, phase=0):

@@ -1,0 +1,11 @@
+TESTE COM TAUS FIXOS
+
+	- energia com tendencia negativa:
+		média do erro: 15.271
+		variância: 3.5439
+	
+	- akaike:
+		Erro Médio:	 14.478
+		Variância do erro:	 4.770483832904164
+
+

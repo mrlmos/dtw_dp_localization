@@ -1,18 +1,14 @@
-from typing import Optional
-
 import numpy as np
-from icecream import ic
 from dataclasses import dataclass, field
 from collections.abc import Callable
 from scipy.optimize import fsolve
 
-from .dtw import gen_cost_matrix, backtracking, dist
+from .dtw import gen_cost_matrix, backtracking
 from .experiment_loader import (
     Experiment,
     ANTENNA_POSITIONS,
     SOURCE_POSITIONS,
 )
-from .preprocessing import cum_energy_exp, deriv_estimation
 
 v_e = 3e8
 REF_CHANNEL = {
@@ -147,6 +143,16 @@ def tau_estim_dtw(
             path = backtracking(D)[::-1]
             linked = [pj for pi, pj in path if pi == ref_arrival]
             linked_diffs = np.abs(v_ref[ref_arrival] - v[linked])
+
+            # ---------- CONFIDENCE INTERVAL ----------
+            # diffs_sorted = np.argsort(linked_diffs)
+            # if len(diffs_sorted) == 1:
+            #     estimative = np.abs(diffs_sorted[0] + linked[0] - ref_arrival)
+            # elif len(diffs_sorted) < 4:
+            #     estimative = np.abs(np.mean(diffs_sorted) + linked[0] - ref_arrival)
+            # else:
+            #     estimative = np.abs(np.mean(diffs_sorted[:3]) + linked[0] - ref_arrival)
+
             estimative = np.abs(np.argmin(linked_diffs) + linked[0] - ref_arrival)
             taus[ch] = estimative / exp.sample_rate
         return taus

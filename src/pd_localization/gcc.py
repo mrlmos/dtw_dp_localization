@@ -15,6 +15,41 @@ def gcc_phat(x: np.ndarray, y: np.ndarray):
     return np.fft.fftshift(gcc)
 
 
+def gcc_ps(x: np.ndarray, y: np.ndarray):
+    p = 0.5
+    corrlen = len(x) + len(y) - 1
+    fftlen = corrlen
+    spec1 = np.fft.fft(x, n=fftlen)
+    spec2 = np.fft.fft(y, n=fftlen)
+
+    spec11 = spec1 * np.conj(spec1)
+    spec22 = spec2 * np.conj(spec2)
+    spec12 = spec1 * np.conj(spec2)
+
+    psi = (np.sqrt(spec11 * spec22) - np.abs(spec12)) / (np.abs(spec12) ** p)
+    phat_fft = spec12 * np.abs(psi)
+    gcc = np.fft.ifft(phat_fft, n=fftlen).real
+    return np.fft.fftshift(gcc)
+
+
+def gcc_phat_p(x: np.ndarray, y: np.ndarray):
+    p = 0.8
+    corrlen = len(x) + len(y) - 1
+    fftlen = corrlen
+    spec1 = np.fft.fft(x, n=fftlen)
+    spec2 = np.fft.fft(y, n=fftlen)
+
+    spec11 = spec1 * np.conj(spec1)
+    spec22 = spec2 * np.conj(spec2)
+    spec12 = spec1 * np.conj(spec2)
+
+    coherence = (np.abs(spec12) ** 2) / (spec11 * spec12)
+    psi = 1 / (np.abs(spec12) ** p + 0.1 * np.mean(np.abs(spec12)))
+    phat_fft = spec12 * psi
+    gcc = np.fft.ifft(phat_fft, n=fftlen).real
+    return np.fft.fftshift(gcc)
+
+
 def gcc_roth(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     corrlen = len(x) + len(y) - 1
     fftlen = corrlen
