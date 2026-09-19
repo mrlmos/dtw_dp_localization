@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from collections.abc import Callable
 from scipy.optimize import fsolve
 
+from pd_localization.gcc import sff_gcc
+
 from .dtw import gen_cost_matrix, backtracking
 from .experiment_loader import (
     Experiment,
@@ -174,8 +176,32 @@ def tau_estim_gcc(pre_processing: Callable, gcc_func: Callable) -> Callable:
             if i == ref_index:
                 taus[ch] = 0.0
                 continue
-            cross_corr = gcc_func(v_ref, v)
+            cross_corr = sff_gcc(v_ref, v)
             estimative = np.abs(np.argmax(np.abs(cross_corr)) - len(v_ref) + 1)
+            taus[ch] = estimative / exp.sample_rate
+        return taus
+
+    return _estimate
+
+
+def tau_estim_sff(pre_processing: Callable, gcc_func: Callable) -> Callable:
+    refs = {"antena1": 0, "antena2": 1, "antena3": 2, "antena4": 3}
+
+    def _estimate(exp: Experiment) -> dict:
+        voltages = pre_processing(exp)
+        ref_index = refs[exp.antenna]
+
+        v_ref = voltages[ref_index]
+        ch_names = [f"CH{i + 1}" for i in range(len(voltages))]
+        taus = {}
+        for i, (v, ch) in enumerate(zip(voltages, ch_names)):
+            if i == ref_index:
+                taus[ch] = 0.0
+                continue
+            cross_corr = gcc_func(v_ref, v)
+            ests = np.argmax(cross_corr, axis=-1) - len(v) + 1
+            cond = np.abs(ests) < 50
+            estimative = np.abs(np.mean(ests, where=cond))
             taus[ch] = estimative / exp.sample_rate
         return taus
 

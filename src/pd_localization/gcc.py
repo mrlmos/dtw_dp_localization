@@ -1,5 +1,6 @@
 import numpy as np
 from .experiment_loader import Experiment
+from scipy.signal import lfilter
 
 
 def gcc_phat(x: np.ndarray, y: np.ndarray):
@@ -92,3 +93,34 @@ def gcc_ht(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     psi = 1 / np.abs(spec12) * (np.abs(coh) ** 2) / (1 - np.abs(coh) ** 2)
     gcc = np.fft.ifft(spec12 * psi, n=fftlen).real
     return np.fft.fftshift(gcc)
+
+
+def sff_gcc(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+
+    FS = 1 / 4e-10
+    f_start = 300e6
+    f_end = 1.2e9
+    K = 400
+
+    def batch_shift(
+        signal: np.ndarray, f_start: float, f_end: float, K: int = 100, fs=FS
+    ):
+        freqs = np.linspace(f_start, f_end, K).reshape(-1, 1)
+        n = np.arange(len(signal))
+        omega = np.pi - 2 * np.pi * freqs / fs
+        return signal * np.exp(1j * omega * n)
+
+    def ressonant_filter(x_k: np.ndarray, r: float = 0.99) -> np.ndarray:
+        b = [1.0]
+        a = [1.0, r]
+        y_k = lfilter(b, a, x_k)
+        return np.abs(y_k)
+
+    s1_k = batch_shift(x, f_start, f_end, K)
+    y1_k = ressonant_filter(s1_k)
+
+    s2_k = batch_shift(y, f_start, f_end, K)
+    y2_k = ressonant_filter(s2_k)
+
+    big_gcc = np.array([gcc_phat(y1, y2) for (y1, y2) in zip(y1_k, y2_k)])
+    return big_gcc
