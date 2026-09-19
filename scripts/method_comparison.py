@@ -17,6 +17,7 @@ from pd_localization.localizacao import (
     tau_estim_energy,
     tau_estim_gcc,
     true_taus,
+    tau_estim_sff,
 )
 from pd_localization.gcc import gcc_roth, gcc_ht, gcc_phat, gcc_scot, gcc_phat_p, gcc_ps
 from pd_localization.dtw import dist
@@ -44,13 +45,17 @@ gcc_taus = batch_tau_estimates(experiments, gcc_estimator)
 gcc_estimator = tau_estim_gcc(norm_zero_mean, gcc_phat_p)
 phat_taus = batch_tau_estimates(experiments, gcc_estimator)
 
-# ---------- ENERGY CRITERION ----------
-energy_estimator = tau_estim_energy(energy_criterion, np.min)
-energy_taus = batch_tau_estimates(experiments, energy_estimator)
+# ---------- SFF-GCC ----------
+sff_estimator = tau_estim_sff(norm_zero_mean, gcc_phat)
+sff_taus = batch_tau_estimates(experiments, sff_estimator)
 
-# ---------- CUMULATIVE ENERGY ----------
-cum_estimator = tau_estim_energy(cum_energy_exp, curv_detection)
-cum_taus = batch_tau_estimates(experiments, cum_estimator)
+# # ---------- ENERGY CRITERION ----------
+# energy_estimator = tau_estim_energy(energy_criterion, np.min)
+# energy_taus = batch_tau_estimates(experiments, energy_estimator)
+#
+# # ---------- CUMULATIVE ENERGY ----------
+# cum_estimator = tau_estim_energy(cum_energy_exp, curv_detection)
+# cum_taus = batch_tau_estimates(experiments, cum_estimator)
 
 # ------------------------------
 #           PLOTS
@@ -59,7 +64,7 @@ estimators = {
     "DTW": dtw_taus,
     "GCC-PHAT": gcc_taus,
     "PHAT-P": phat_taus,
-    "Energia + curv": cum_taus,
+    "SFF-GCC": sff_taus,
 }
 
 ref_channel = {
@@ -144,7 +149,7 @@ for antenna in locations:
                 if ch == ref:
                     continue
 
-                errors.append(abs(estimates[i][ch] - target[i][ch]))
+                errors.append(abs(estimates[i][ch] - target[i][ch]) * (1 / 4e-10))
 
         means[name].append(np.mean(errors))
 
@@ -162,7 +167,7 @@ for offset, (name, vals) in zip(offsets, means.items()):
 ax.set_xticks(x)
 ax.set_xticklabels(locations)
 
-ax.set_ylabel("Erro médio (ns)")
+ax.set_ylabel("Erro médio (amostras)")
 ax.set_title("Erro médio por fonte DP")
 ax.legend()
 

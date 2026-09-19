@@ -1,0 +1,35 @@
+from dataclasses import dataclass
+from scipy.signal import lfilter
+from pd_localization.experiment_loader import load_experiments, get_experiment
+from pd_localization.localizacao import true_taus
+import cmath
+import numpy as np
+import matplotlib.pyplot as plt
+
+FS = 1 / 4e-10
+
+
+def batch_shift(
+    signal: np.ndarray, f_start: float, f_end: float, K: int = 100, fs=FS
+) -> np.ndarray:
+    raise NotImplementedError
+
+
+def freq_shift(signal, f_shift, fs=FS) -> np.ndarray:
+    omega = np.pi - 2 * np.pi * f_shift / fs
+    phase = np.arange(len(signal)) * 1j
+    return signal * np.exp(phase * omega)
+
+
+def ressonant_filter(x_k: np.ndarray, r: float = 0.99) -> np.ndarray:
+    b = [1.0]
+    a = [1.0, r]
+    return lfilter(b, a, x_k)
+
+
+if "__name__" == __main__:
+    DATA_PATH = "/home/murilo/dev/python/tcc/dados_dp/"
+    experiments = load_experiments(DATA_PATH)
+    exp = get_experiment(experiments, "antena1", 0)
+    x = exp.voltage("CH1")
+    t = np.arange(0, len(x) / exp.sample_rate, 1 / exp.sample_rate)
