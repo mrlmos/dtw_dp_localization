@@ -4,8 +4,10 @@ from pd_localization.experiment_loader import (
     load_experiments,
     get_experiment,
 )
+from pd_localization.preprocessing import norm_zero_mean, envelope_exp
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.signal import envelope
 
 
 def dist(x, y):
@@ -89,7 +91,7 @@ def norm_exp_same(exp: Experiment):
     return voltages
 
 
-def cum_energy_exp(voltages: list[np.ndarray]):
+def cum_energy(voltages: list[np.ndarray]):
     def relu(x, b=0.0):
         return np.maximum(x + b, 0.0)
 
@@ -103,27 +105,27 @@ def cum_energy_exp(voltages: list[np.ndarray]):
 
 def main():
     path = "/home/murilo/dev/python/tcc/dados_dp/"
-    antena = "antena4"
+    antena = "antena1"
     experimentos = load_experiments(base_dir=path, antennas=[antena])
     exp = get_experiment(experimentos, antena, 3)
-    ic(exp.distances)
-    voltages = norm_exp_uniform(exp)
-    energies = cum_energy_exp(voltages)
-
-    FILTER_SIZE = 101
-
-    f1 = 600e6
-    f2 = exp.sample_rate / 2
-    h = filter(exp.sample_rate, f1, FILTER_SIZE, window_function=hamming_window)
+    T = 1 / exp.sample_rate
+    v_env = envelope_exp(exp)
+    v_cum = cum_energy_exp(exp)
+    voltages = norm_zero_mean(exp)
+    # n = len(voltages[0])
     signal_start = (98, 106, 113, 106)
+    # pb = (None, int(100000 * n * T))
+    pb = (None, 90)
 
     voltages_filtered = []
     for v in voltages:
-        vf = np.convolve(v, h, "same")
-        voltages_filtered.append(vf)
+        env, res = envelope(v, pb)
+        voltages_filtered.append(env + res)
+    print(voltages_filtered[0].shape)
+
     fig, axs = plt.subplots(4, 1, figsize=(14, 8))
     colors = ["C0", "C1", "C2", "C3"]
-    for v, vf, ax, c in zip(voltages, voltages_filtered, axs, colors):
+    for v, vf, ax, c in zip(v_cum, v_env, axs, colors):
         ax.plot(v, "--", alpha=0.5, color=c, label="sinal original")
         ax.plot(vf, label="sinal filtrado", color=c)
         ax.set_ylabel("Voltage (V)", fontsize=11)
@@ -131,25 +133,6 @@ def main():
         ax.grid(True, linestyle="--", alpha=0.4)
         # fig.suptitle(r"Sinais filtrados")
     plt.show()
-
-    # vref = voltages_filtered[0]
-    # v_corr = np.correlate(vref, vref, mode="full")
-    # plt.plot(v_corr)
-    # plt.title(f"valor maximo: {np.argmax(v_corr)}")
-    # plt.show()
-
-    # energies = cum_energy_exp(voltages_filtered)
-    # fig, axs = plt.subplots(4, 1, figsize=(14, 8))
-    # colors = ["C0", "C1", "C2", "C3"]
-    # for v, start, ax, ch, c in zip(energies, signal_start, axs, exp.ch_names, colors):
-    #     delta = np.abs(signal_start[0] - start)
-    #     ax.plot(v, label=ch, color=c)
-    #     ax.set_ylabel("Voltage (V)", fontsize=8)
-    #     ax.grid(True, linestyle="--", alpha=0.4)
-    #     ax.axvline(x=start, c="red", label=f"amostra {start}, $\Delta = ${delta}")
-    #     ax.legend(loc="upper right", fontsize=12)
-    #     fig.suptitle(r"Energia cumulativa $\sum{V(t)^2}$")
-    # plt.show()
 
 
 if __name__ == "__main__":

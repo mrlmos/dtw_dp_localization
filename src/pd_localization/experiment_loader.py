@@ -168,7 +168,9 @@ def _group_experiments(csv_files: list) -> list:
     return groups
 
 
-def load_experiments(base_dir=".", antennas=None) -> list:
+def load_experiments(
+    base_dir="/home/murilo/dev/python/tcc/dados_dp/", antennas=None
+) -> list:
     """
     Load all experiments from antenna subfolders.
 

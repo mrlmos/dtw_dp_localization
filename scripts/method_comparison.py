@@ -6,9 +6,10 @@ from pd_localization.experiment_loader import (
 from pd_localization.preprocessing import (
     cum_energy_exp,
     curv_detection,
-    akaike_info,
-    energy_criterion,
+    exp_filter,
     norm_zero_mean,
+    envelope_exp,
+    double_cum,
 )
 from pd_localization.localizacao import (
     batch_localization,
@@ -19,7 +20,15 @@ from pd_localization.localizacao import (
     true_taus,
     tau_estim_sff,
 )
-from pd_localization.gcc import gcc_roth, gcc_ht, gcc_phat, gcc_scot, gcc_phat_p, gcc_ps
+from pd_localization.gcc import (
+    gcc_roth,
+    gcc_ht,
+    gcc_phat,
+    gcc_scot,
+    gcc_phat_p,
+    gcc_ps,
+    sff_gcc,
+)
 from pd_localization.dtw import dist
 
 REF_CHANNEL = {
@@ -41,12 +50,12 @@ dtw_taus = batch_tau_estimates(experiments, dtw_estimator)
 gcc_estimator = tau_estim_gcc(norm_zero_mean, gcc_phat)
 gcc_taus = batch_tau_estimates(experiments, gcc_estimator)
 
-# ---------- PHAT-P ----------
-gcc_estimator = tau_estim_gcc(norm_zero_mean, gcc_phat_p)
-phat_taus = batch_tau_estimates(experiments, gcc_estimator)
+# ---------- DTW-ENV ----------
+dtw_env_est = tau_estim_dtw(double_cum, curv_detection, dist)
+dtwe_taus = batch_tau_estimates(experiments, dtw_env_est)
 
 # ---------- SFF-GCC ----------
-sff_estimator = tau_estim_sff(norm_zero_mean, gcc_phat)
+sff_estimator = tau_estim_sff(norm_zero_mean, sff_gcc)
 sff_taus = batch_tau_estimates(experiments, sff_estimator)
 
 # # ---------- ENERGY CRITERION ----------
@@ -62,8 +71,8 @@ sff_taus = batch_tau_estimates(experiments, sff_estimator)
 # ------------------------------
 estimators = {
     "DTW": dtw_taus,
-    "GCC-PHAT": gcc_taus,
-    "PHAT-P": phat_taus,
+    # "GCC-PHAT": gcc_taus,
+    "DTW-novo": dtwe_taus,
     "SFF-GCC": sff_taus,
 }
 
@@ -78,57 +87,57 @@ channels = ["CH1", "CH2", "CH3", "CH4"]
 
 bar_width = 0.16
 
-# for antenna in ("antena1", "antena2", "antena3", "antena4"):
-#     idxs = [i for i, exp in enumerate(experiments) if exp.antenna == antenna]
-#
-#     x = np.arange(len(idxs))
-#
-#     plot_channels = [c for c in channels if c != ref_channel[antenna]]
-#
-#     fig, axes = plt.subplots(
-#         3,
-#         1,
-#         figsize=(14, 8),
-#         sharex=True,
-#         constrained_layout=True,
-#     )
-#
-#     fig.suptitle(f"Erro absoluto - {antenna} (1 sample = 0.4ns)", fontsize=14)
-#
-#     offsets = (np.arange(len(estimators)) - (len(estimators) - 1) / 2) * bar_width
-#
-#     for ax, ch in zip(axes, plot_channels):
-#         true = np.array([target[i][ch] for i in idxs])
-#
-#         for offset, (name, estimates) in zip(offsets, estimators.items()):
-#             est = np.array([estimates[i][ch] for i in idxs])
-#
-#             error = np.abs(est - true) * 1e9
-#
-#             ax.bar(
-#                 x + offset,
-#                 error,
-#                 width=bar_width,
-#                 label=name,
-#             )
-#
-#         ax.set_title(ch)
-#         ax.set_ylabel("Erro (ns)")
-#         ax.grid(axis="y", alpha=0.3)
-#
-#     axes[-1].set_xticks(x)
-#     axes[-1].set_xticklabels(np.arange(1, len(idxs) + 1))
-#     axes[-1].set_xlabel("Experimento")
-#
-#     handles, labels = axes[0].get_legend_handles_labels()
-#     fig.legend(
-#         handles,
-#         labels,
-#         loc="center right",
-#         # bbox_to_anchor=(1.02, 0.5),
-#     )
-#
-# plt.show()
+for antenna in ("antena1", "antena2", "antena3", "antena4"):
+    idxs = [i for i, exp in enumerate(experiments) if exp.antenna == antenna]
+
+    x = np.arange(len(idxs))
+
+    plot_channels = [c for c in channels if c != ref_channel[antenna]]
+
+    fig, axes = plt.subplots(
+        3,
+        1,
+        figsize=(14, 8),
+        sharex=True,
+        constrained_layout=True,
+    )
+
+    fig.suptitle(f"Erro absoluto - {antenna} (1 sample = 0.4ns)", fontsize=14)
+
+    offsets = (np.arange(len(estimators)) - (len(estimators) - 1) / 2) * bar_width
+
+    for ax, ch in zip(axes, plot_channels):
+        true = np.array([target[i][ch] for i in idxs])
+
+        for offset, (name, estimates) in zip(offsets, estimators.items()):
+            est = np.array([estimates[i][ch] for i in idxs])
+
+            error = np.abs(est - true) * 1e9
+
+            ax.bar(
+                x + offset,
+                error,
+                width=bar_width,
+                label=name,
+            )
+
+        ax.set_title(ch)
+        ax.set_ylabel("Erro (ns)")
+        ax.grid(axis="y", alpha=0.3)
+
+    axes[-1].set_xticks(x)
+    axes[-1].set_xticklabels(np.arange(1, len(idxs) + 1))
+    axes[-1].set_xlabel("Experimento")
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels,
+        loc="center right",
+        # bbox_to_anchor=(1.02, 0.5),
+    )
+
+plt.show()
 
 
 ## BOX PLOT

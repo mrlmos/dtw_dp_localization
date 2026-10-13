@@ -1,14 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.signal import csd, welch, spectrogram, butter, filtfilt
 from scipy.fft import fft, ifft, fftshift
 from pd_localization.experiment_loader import load_experiments, get_experiment
+from pd_localization.preprocessing import norm_zero_mean
 
 
-def uhf_filter(x: np.ndarray, fs, fc=300e6):
-    b, a = butter(4, fc, btype="high", fs=fs)
-    x_filt = filtfilt(b, a, x)
-    return x_filt
+def power_law(x, k=10):
+    return ((1 + k) ** x - 1) / k
 
 
 def get_sd(x: np.ndarray, fs: float):
@@ -18,52 +16,99 @@ def get_sd(x: np.ndarray, fs: float):
     return S1_c, f_c
 
 
+def preditor_linear(x: np.ndarray, p: int):
+    """
+    Calcula os Coeficientes a_k do preditor linear recursivo.
+    -----------
+    Entrada:
+        x - vetor de entrada. \n
+        p - ordem do filtro. \n
+    Retorna:
+        a_k - vetor de coeficientes.\n
+        G - Ganho do sistema.
+    """
+    N = len(x)
+    r_full = np.correlate(x, x, mode="full")
+    r = r_full[(N - 1) : (N - 1 + p + 1)]
+
+    psi = r[1:]
+    phi = np.zeros((p, p))
+    for i in range(p):
+        for j in range(p):
+            phi[i, j] = r[np.abs(i - j)]
+
+    a_k = np.linalg.inv(phi) @ psi
+    G = np.sqrt(r[0] - np.dot(a_k, r[1:]))
+    return a_k, G
+
+
+def lp_predict(x: np.ndarray, a_k: np.ndarray):
+    N = len(x)
+    p = len(a_k)
+    x_pred = np.zeros_like(x)
+    x_pred[:p] = x[:p]
+    for n in range(p, N):
+        x_pred[n] = np.dot(a_k[::-1], x[n - p : n])
+    return x_pred
+
+
+def lpc_spectrum(x: np.ndarray, freqs: np.ndarray, p: int = 8):
+    """
+    Calcula o espectro de potência de um sinal pelo LPC
+    (Linear Predictive Coding)
+    ----------
+    Entradas:
+        x - sinal de análise. \n
+        freqs - frequências onde o ganho será avaliado \n
+        p - ordem do filtro preditor linear \n
+    Retorna:
+        H - absoluto da resposta em frequência
+    """
+    a_k, G = preditor_linear(x, p)
+    a_k = np.r_[1, -a_k]
+    H = np.zeros_like(freqs, dtype=complex)
+    for i, f in enumerate(freqs):
+        omega = 2 * np.pi * f / fs
+        z = np.exp(1j * omega)
+        den = 0
+        for k in range(p + 1):
+            den += a_k[k] * (z**-k)
+        H[i] = G / den
+    return np.abs(H)
+
+
+def lpc_gcc(x, y, fs, p=8):
+    N = len(x) + len(y) - 1
+    freqs = np.linspace(-fs / 2, fs / 2, num=N)
+    H = lpc_spectrum(x, freqs, p)
+    V1 = fftshift(fft(x, n=N))
+    V2 = fftshift(fft(y, n=N))
+    CC = V1 * np.conjugate(V2)
+    new_gcc = fftshift(ifft(CC / H).real)
+    return new_gcc
+
+
 DATA_PATH = "/home/murilo/dev/python/tcc/dados_dp/"
 experiments = load_experiments(DATA_PATH)
-exp = get_experiment(experiments, "antena1", 0)
+exp = get_experiment(experiments, "antena1", 2)
 
 fs = exp.sample_rate
-s1 = exp.voltage("CH2")
-s2 = exp.voltage("CH2")
-t = np.linspace(0, len(s1) / fs, num=len(s1)) * 1e9
-n = 2048
+t = exp.time()
+voltages = norm_zero_mean(exp)
+p = 8
 
-s1_f = uhf_filter(s1, fs)
-S1, f_s1 = get_sd(s1_f, fs)
-f_s1 /= 1e9
+erros = []
+for v in voltages:
+    a_k, _ = preditor_linear(v, p)
+    erro = lp_predict(v, a_k)
+    erros.append(erro)
 
-fig, (ax1, ax2) = plt.subplots(2, 1)
+fig, axs = plt.subplots(4, 1, sharex=True)
+for i in range(len(axs)):
+    axs[i].plot(t, erros[i], label="preditor")
+    axs[i].plot(t, voltages[i], lw=1, ls="--", label="real")
+    axs[i].legend()
 
-ax1.plot(t, s1_f)
-ax1.set_xlabel("time (ns)")
-ax1.set_title("Time signal")
-
-ax2.plot(f_s1[n // 2 :], S1[n // 2 :], label="Spectral Density")
-ax2.axvspan(0.3, f_s1[-1], color="red", alpha=0.1, label="UHF Range")
-ax2.set_xlabel("GHz")
-ax2.set_title(r"$\mathcal{F}\{R[\tau]\}$")
-
-plt.legend()
-plt.tight_layout()
-plt.show()
-
-wl = 32
-overlap = 30
-nfft = 512
-
-freqs, time, Sxx = spectrogram(
-    s1_f, fs, "hann", nperseg=wl, noverlap=overlap, nfft=nfft, scaling="spectrum"
-)
-Sxx_dB = 10 * np.log10(Sxx + 1e-10)
-
-plt.figure(figsize=(8, 5))
-mesh = plt.pcolormesh(
-    time * 1e6, freqs / 1e6, Sxx_dB, shading="gouraud", cmap="viridis"
-)
-
-plt.colorbar(mesh, label="Power (dB)")
-plt.title("Spectrogram of 250-Sample Transient")
-plt.ylabel("Frequency (MHz)")
-plt.xlabel("Time (µs)")
+fig.suptitle(f"order p = {p}")
 plt.tight_layout()
 plt.show()

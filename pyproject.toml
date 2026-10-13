@@ -5,6 +5,7 @@ description = "Tools for Lozalization of Partial Discharge Ocurrances"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "control>=0.10.2",
     "gdtw>=1.2.1",
     "icecream>=2.1.10",
     "ipython>=9.13.0",
@@ -14,6 +15,7 @@ dependencies = [
     "pandas>=3.0.2",
     "pyqt5>=5.15.11",
     "scipy>=1.17.1",
+    "slycot>=0.7.0",
 ]
 
 [project.scripts]

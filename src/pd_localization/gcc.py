@@ -1,6 +1,6 @@
 import numpy as np
 from .experiment_loader import Experiment
-from scipy.signal import lfilter
+from scipy.signal import lfilter, filtfilt
 
 
 def gcc_phat(x: np.ndarray, y: np.ndarray):
@@ -96,7 +96,6 @@ def gcc_ht(x: np.ndarray, y: np.ndarray) -> np.ndarray:
 
 
 def sff_gcc(x: np.ndarray, y: np.ndarray) -> np.ndarray:
-
     FS = 1 / 4e-10
     f_start = 300e6
     f_end = 1.2e9

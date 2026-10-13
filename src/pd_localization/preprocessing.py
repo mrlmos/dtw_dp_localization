@@ -1,5 +1,6 @@
 import numpy as np
 from icecream import ic
+from scipy.signal import filtfilt, butter, envelope
 from .experiment_loader import Experiment
 
 
@@ -37,6 +38,52 @@ def normz_exp(exp: Experiment) -> list[np.ndarray]:
 
 def min_max_norm(x: np.ndarray) -> np.ndarray:
     return (x - np.min(x)) / (np.max(x) - np.min(x))
+
+
+# ------------------------------------------
+# Filtragem
+# ------------------------------------------
+
+
+def uhf_filter(x: np.ndarray, fs: float, fc: float = 300e6) -> np.ndarray:
+    b, a = butter(4, fc, fs=fs, btype="high")
+    x_filt = filtfilt(b, a, x)
+    return x_filt
+
+
+def exp_filter(
+    exp: Experiment, kind: str = "high", fc: float = 300e6
+) -> list[np.ndarray]:
+    fs = exp.sample_rate
+    voltages = norm_zero_mean(exp)
+    voltages_filt = []
+    for v in voltages:
+        v_filt = uhf_filter(v, fs)
+        voltages_filt.append(v_filt)
+    return voltages_filt
+
+
+def envelope_exp(exp: Experiment):
+    voltages = norm_zero_mean(exp)
+    bp = (None, 90)
+    vf = []
+    for v in voltages:
+        env, res = envelope(v, bp)
+        cum_energy = np.cumsum((env + res) ** 2)
+        cum_energy /= cum_energy.max()
+        vf.append(cum_energy)
+    return vf
+
+
+def double_cum(exp: Experiment):
+    chs = ["CH1", "CH2", "CH3", "CH4"]
+    voltages = np.array([exp.voltage(c) for c in chs])
+    dc = np.zeros_like(voltages)
+    for i, v in enumerate(voltages):
+        cum_sum = np.cumsum(np.abs(v))
+        cum_sum /= cum_sum.max()
+        dc[i, :] = cum_sum
+    return dc
 
 
 # ------------------------------------------

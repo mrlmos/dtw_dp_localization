@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 from dataclasses import dataclass, field
 from collections.abc import Callable
 from scipy.optimize import fsolve
@@ -72,9 +73,8 @@ class LocalizationResult:
 def tdoa_2d(vars, taus: dict) -> list:
     x, y, t1 = vars
 
-    # remove a equação com o maior tau (menor SNR)
-    max_ch = max(taus, key=lambda ch: taus[ch])
-    new_taus = {ch: tau for ch, tau in taus.items() if ch != max_ch}
+    # Remove o canal 4 (menos confiável)
+    new_taus = {ch: tau for ch, tau in taus.items() if ch != "CH4"}
 
     eqs = []
     for ch, tau in new_taus.items():
@@ -83,6 +83,20 @@ def tdoa_2d(vars, taus: dict) -> list:
         eq = (x - xi) ** 2 + (y - yi) ** 2 - (v_e * (t1 + tau)) ** 2
         eqs.append(eq)
     return eqs
+
+
+def jacobian_2d(vars, taus: dict) -> np.ndarray:
+    x, y, t1 = vars
+    new_taus = {ch: tau for ch, tau in taus.items() if ch != "CH4"}
+
+    J = []
+    for ch, tau in new_taus.items():
+        xi, yi = ANTENNA_POSITIONS[ch][:2]
+        df_dx = 2 * (x - xi)
+        df_dy = 2 * (y - yi)
+        df_dt1 = -2 * (v_e**2) * (t1 + tau)
+        J.append([df_dx, df_dy, df_dt1])
+    return np.array(J)
 
 
 def tdoa_3d(vars, taus: dict) -> list:
@@ -96,6 +110,20 @@ def tdoa_3d(vars, taus: dict) -> list:
         eq = (x - xi) ** 2 + (y - yi) ** 2 + (z - zi) ** 2 - (v_e * (t1 + tau)) ** 2
         eqs.append(eq)
     return eqs
+
+
+def jacobian_3d(vars, taus: dict) -> np.ndarray:
+    x, y, z, t1 = vars
+
+    J = []
+    for ch, tau in taus.items():
+        xi, yi, zi = ANTENNA_POSITIONS[ch][:3]
+        df_dx = 2 * (x - xi)
+        df_dy = 2 * (y - yi)
+        df_dz = 2 * (z - zi)
+        df_dt1 = -2 * (v_e**2) * (t1 + tau)
+        J.append([df_dx, df_dy, df_dz, df_dt1])
+    return np.array(J)
 
 
 # -----------------------------------
@@ -176,7 +204,7 @@ def tau_estim_gcc(pre_processing: Callable, gcc_func: Callable) -> Callable:
             if i == ref_index:
                 taus[ch] = 0.0
                 continue
-            cross_corr = sff_gcc(v_ref, v)
+            cross_corr = gcc_func(v_ref, v)
             estimative = np.abs(np.argmax(np.abs(cross_corr)) - len(v_ref) + 1)
             taus[ch] = estimative / exp.sample_rate
         return taus
@@ -231,6 +259,10 @@ def tau_estim_energy(pre_processing: Callable, knee_estimator: Callable) -> Call
     return _estimate
 
 
+def single_tau_estimate(exp: Experiment, estimator: Callable) -> dict:
+    return estimator(exp)
+
+
 def batch_tau_estimates(
     experiments: list[Experiment],
     estimator: Callable,
@@ -243,16 +275,62 @@ def batch_tau_estimates(
 # -----------------------------------
 
 
+def solve_newton_raphson(
+    func, jacobian_func, initial_guess, taus, max_iter=50, tol=1e-9
+):
+    """
+    Executes the Newton-Raphson iterations to find the source location.
+
+    ---------------------------------------------------------------------------
+    ```
+    # Example Usage:
+    guess_2d = [0.0, 0.0, 0.0]  # [x, y, t1]
+    result_2d, ier = solve_newton_raphson(tdoa_2d, jacobian_2d, guess_2d, sff_taus)
+
+    guess_3d = [0.0, 0.0, 0.0, 0.0]  # [x, y, z, t1]
+    result_3d, ier = solve_newton_raphson(tdoa_3d, jacobian_3d, guess_3d, sff_taus)
+    ```
+    """
+    ier = False
+    v = np.array(initial_guess, dtype=float)
+
+    for i in range(max_iter):
+        F = func(v, taus)
+        J = jacobian_func(v, taus)
+
+        # Check convergence based on the residual norm
+        if np.linalg.norm(F) < tol:
+            # print(f"Converged in {i} iterations.")
+            ier = True
+            return v, ier
+
+        try:
+            delta_v = np.linalg.solve(J, F)
+        except np.linalg.LinAlgError:
+            delta_v = np.linalg.pinv(J) @ F
+
+        # Optional: Add a step constraint to prevent divergent jumps in early iterations
+        if np.linalg.norm(delta_v) < tol:
+            break
+
+        v = v - delta_v
+
+    warnings.warn("Warning: Maximum iterations reached without convergence.")
+    return v, ier
+
+
 def estimate_location(
     exp: Experiment, taus: dict, mode: str = "2d"
 ) -> LocalizationResult:
     t_mid = np.sqrt(2) / v_e
     if mode == "2d":
         p0_2d = [1.0, 1.0, t_mid]
+        # sol, ier = solve_newton_raphson(tdoa_2d, jacobian_2d, p0_2d, taus)
         sol, info, ier, msg = fsolve(tdoa_2d, p0_2d, full_output=True, args=(taus,))
         true_pos = SOURCE_POSITIONS[exp.antenna][:-1]
     else:
         p0_3d = [1.0, 1.0, 0.5, t_mid]
+        # sol, ier = solve_newton_raphson(tdoa_3d, jacobian_3d, p0_3d, taus)
         sol, info, ier, msg = fsolve(tdoa_3d, p0_3d, full_output=True, args=(taus,))
         true_pos = SOURCE_POSITIONS[exp.antenna]
 

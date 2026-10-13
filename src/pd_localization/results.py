@@ -54,15 +54,30 @@ def remove_outliers(
 
 def mean_estimates(df: pd.DataFrame) -> pd.DataFrame:
     grouped = df.groupby("exp_antena")
+    is_3d = False
 
-    result = grouped[["x_est", "y_est", "x_true", "y_true"]].mean().reset_index()
+    cols = ["x_est", "y_est", "x_true", "y_true"]
+    if "z_est" in df.columns and "z_true" in df.columns:
+        is_3d = True
+        cols.extend(["z_est", "z_true"])
 
-    # recompute errors from the mean position, not mean of individual errors
-    result["abs_error(m)"] = np.sqrt(
-        (result["x_est"] - result["x_true"]) ** 2
-        + (result["y_est"] - result["y_true"]) ** 2
-    )
-    result["rel_error(%)"] = np.pi * result["abs_error(m)"] ** 2 / ANTENNA_AREA
+    result = grouped[cols].mean().reset_index()
+
+    if is_3d:
+        result["abs_error(m)"] = np.sqrt(
+            (result["x_est"] - result["x_true"]) ** 2
+            + (result["y_est"] - result["y_true"]) ** 2
+            + (result["z_est"] - result["z_true"]) ** 2
+        )
+        result["rel_error(%)"] = (
+            (4 / 3) * np.pi * result["abs_error(m)"] ** 3 / ANTENNA_VOLUME
+        )
+    else:
+        result["abs_error(m)"] = np.sqrt(
+            (result["x_est"] - result["x_true"]) ** 2
+            + (result["y_est"] - result["y_true"]) ** 2
+        )
+        result["rel_error(%)"] = np.pi * result["abs_error(m)"] ** 2 / ANTENNA_AREA
 
     return result
 
@@ -115,8 +130,23 @@ def print_summary(df: pd.DataFrame) -> None:
 # ---------------------------------------------------------------------------
 
 
-def plot_location_scatter(results: list[LocalizationResult]) -> plt.Figure:
-    mode = results[0].mode
+def plot_location_scatter(
+    results: list[LocalizationResult] | pd.DataFrame,
+    only_converged: bool = True,
+    remove_outliers_data: bool = True,
+) -> plt.Figure:
+    if isinstance(results, pd.DataFrame):
+        df = results.copy()
+        mode = "3d" if "z_est" in df.columns else "2d"
+    else:
+        df = to_dataframe(results)
+        mode = results[0].mode if results else "2d"
+
+    if only_converged and "converged" in df.columns:
+        df = df[df["converged"]].copy()
+
+    if remove_outliers_data and "converged" in df.columns:
+        df = remove_outliers(df)
 
     fig = plt.figure(figsize=(8, 8))
     ax = fig.add_subplot(111, projection="3d") if mode == "3d" else fig.add_subplot(111)
@@ -147,8 +177,6 @@ def plot_location_scatter(results: list[LocalizationResult]) -> plt.Figure:
             zorder=5,
             label="antenas",
         )
-        # ax.set_xlim([0.0, 2.1])
-        # ax.set_ylim([0.0, 2.1])
         # draw antenna boundary square
         corners = np.array([[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]], dtype=float)
         ax.plot(corners[:, 0], corners[:, 1], "k--", linewidth=0.8, alpha=0.4)
@@ -156,35 +184,67 @@ def plot_location_scatter(results: list[LocalizationResult]) -> plt.Figure:
     # true source positions
     colors = {"antena1": "C0", "antena2": "C1", "antena3": "C2", "antena4": "C3"}
     for antenna, pos in SOURCE_POSITIONS.items():
-        c = colors[antenna]
+        c = colors.get(antenna, "black")
         if mode == "3d":
             ax.scatter(*pos, marker="*", s=200, c=c, zorder=6)
         else:
             ax.scatter(*pos[:2], marker="*", s=200, c=c, zorder=6, label=f"{antenna}")
 
     # estimated positions + error lines
-    for r in results:
-        if bool(np.all(r.position_estimated[:2] < 2)) is True:
-            c = colors[r.exp_antenna]
-            if mode == "3d":
-                ax.scatter(*r.position_estimated, marker="o", s=30, c=c, alpha=0.8)
-                ax.plot(
-                    [r.position_estimated[0], r.position_true[0]],
-                    [r.position_estimated[1], r.position_true[1]],
-                    [r.position_estimated[2], r.position_true[2]],
-                    c=c,
-                    linewidth=0.4,
-                    alpha=0.3,
-                )
-            else:
-                ax.scatter(*r.position_estimated[:2], marker="o", s=30, c=c, alpha=0.8)
-                ax.plot(
-                    [r.position_estimated[0], r.position_true[0]],
-                    [r.position_estimated[1], r.position_true[1]],
-                    c=c,
-                    linewidth=0.4,
-                    alpha=0.3,
-                )
+    for _, r in df.iterrows():
+        antenna = r["exp_antena"]
+        c = colors.get(antenna, "black")
+        if mode == "3d":
+            ax.scatter(
+                r["x_est"], r["y_est"], r["z_est"], marker="o", s=30, c=c, alpha=0.8
+            )
+            ax.plot(
+                [r["x_est"], r["x_true"]],
+                [r["y_est"], r["y_true"]],
+                [r["z_est"], r["z_true"]],
+                c=c,
+                linewidth=0.4,
+                alpha=0.3,
+            )
+        else:
+            ax.scatter(r["x_est"], r["y_est"], marker="o", s=30, c=c, alpha=0.8)
+            ax.plot(
+                [r["x_est"], r["x_true"]],
+                [r["y_est"], r["y_true"]],
+                c=c,
+                linewidth=0.4,
+                alpha=0.3,
+            )
+
+    # mean estimates per antenna
+    df_mean = mean_estimates(df)
+    first_mean = True
+    for _, row in df_mean.iterrows():
+        antenna = row["exp_antena"]
+        c = colors.get(antenna, "black")
+        label = "estimativa média" if first_mean else None
+        first_mean = False
+        if mode == "3d":
+            ax.scatter(
+                row["x_est"],
+                row["y_est"],
+                row["z_est"],
+                marker="X",
+                s=120,
+                c=c,
+                zorder=7,
+                label=label,
+            )
+        else:
+            ax.scatter(
+                row["x_est"],
+                row["y_est"],
+                marker="X",
+                s=120,
+                c=c,
+                zorder=7,
+                label=label,
+            )
 
     ax.set_xlabel("x (m)")
     ax.set_ylabel("y (m)")
