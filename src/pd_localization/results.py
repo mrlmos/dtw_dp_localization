@@ -52,7 +52,16 @@ def remove_outliers(
     return df[mask].reset_index(drop=True)
 
 
+def remove_out_of_bounds(df: pd.DataFrame) -> pd.DataFrame:
+    df = df[df["converged"]].copy()
+    df = df.query("0 <= x_est <= 2 and 0 <= y_est <= 2")
+    if "z_est" in df.columns:
+        df = df.query("0 <= z_est <= 1")
+    return df
+
+
 def mean_estimates(df: pd.DataFrame) -> pd.DataFrame:
+    df = remove_out_of_bounds(df)
     grouped = df.groupby("exp_antena")
     is_3d = False
 
@@ -132,21 +141,26 @@ def print_summary(df: pd.DataFrame) -> None:
 
 def plot_location_scatter(
     results: list[LocalizationResult] | pd.DataFrame,
+    only_mean_position: bool = False,
     only_converged: bool = True,
-    remove_outliers_data: bool = True,
+    remove_outsiders: bool = True,
 ) -> plt.Figure:
     if isinstance(results, pd.DataFrame):
         df = results.copy()
+        df = df.query("0 <= x_est <= 2 and 0 <= y_est <= 2")
         mode = "3d" if "z_est" in df.columns else "2d"
     else:
         df = to_dataframe(results)
+        # df = df.query("0 <= x_est <= 2 and 0 <= y_est <= 2")
         mode = results[0].mode if results else "2d"
 
     if only_converged and "converged" in df.columns:
         df = df[df["converged"]].copy()
 
-    if remove_outliers_data and "converged" in df.columns:
-        df = remove_outliers(df)
+    if remove_outsiders and "converged" in df.columns:
+        df = df.query("0 <= x_est <= 2 and 0 <= y_est <= 2")
+        if mode == "3d":
+            df = df.query("0 <= z_est <= 1")
 
     fig = plt.figure(figsize=(8, 8))
     ax = fig.add_subplot(111, projection="3d") if mode == "3d" else fig.add_subplot(111)
@@ -190,31 +204,32 @@ def plot_location_scatter(
         else:
             ax.scatter(*pos[:2], marker="*", s=200, c=c, zorder=6, label=f"{antenna}")
 
-    # estimated positions + error lines
-    for _, r in df.iterrows():
-        antenna = r["exp_antena"]
-        c = colors.get(antenna, "black")
-        if mode == "3d":
-            ax.scatter(
-                r["x_est"], r["y_est"], r["z_est"], marker="o", s=30, c=c, alpha=0.8
-            )
-            ax.plot(
-                [r["x_est"], r["x_true"]],
-                [r["y_est"], r["y_true"]],
-                [r["z_est"], r["z_true"]],
-                c=c,
-                linewidth=0.4,
-                alpha=0.3,
-            )
-        else:
-            ax.scatter(r["x_est"], r["y_est"], marker="o", s=30, c=c, alpha=0.8)
-            ax.plot(
-                [r["x_est"], r["x_true"]],
-                [r["y_est"], r["y_true"]],
-                c=c,
-                linewidth=0.4,
-                alpha=0.3,
-            )
+    if not only_mean_position:
+        # estimated positions + error lines
+        for _, r in df.iterrows():
+            antenna = r["exp_antena"]
+            c = colors.get(antenna, "black")
+            if mode == "3d":
+                ax.scatter(
+                    r["x_est"], r["y_est"], r["z_est"], marker="o", s=30, c=c, alpha=0.8
+                )
+                ax.plot(
+                    [r["x_est"], r["x_true"]],
+                    [r["y_est"], r["y_true"]],
+                    [r["z_est"], r["z_true"]],
+                    c=c,
+                    linewidth=0.4,
+                    alpha=0.3,
+                )
+            else:
+                ax.scatter(r["x_est"], r["y_est"], marker="o", s=30, c=c, alpha=0.8)
+                ax.plot(
+                    [r["x_est"], r["x_true"]],
+                    [r["y_est"], r["y_true"]],
+                    c=c,
+                    linewidth=0.4,
+                    alpha=0.3,
+                )
 
     # mean estimates per antenna
     df_mean = mean_estimates(df)

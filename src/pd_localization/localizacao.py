@@ -69,6 +69,11 @@ class LocalizationResult:
 # TDOA EQUATIONS
 # ----------------------------------------
 
+erro_osci = 0.4e-9
+erro_oleo = 0.2e-9
+# erro_osci = 0.0
+# erro_oleo = 0.0
+
 
 def tdoa_2d(vars, taus: dict) -> list:
     x, y, t1 = vars
@@ -78,6 +83,8 @@ def tdoa_2d(vars, taus: dict) -> list:
 
     eqs = []
     for ch, tau in new_taus.items():
+        if tau > 0.0:
+            tau += erro_oleo + erro_osci
         xi = ANTENNA_POSITIONS[ch][0]
         yi = ANTENNA_POSITIONS[ch][1]
         eq = (x - xi) ** 2 + (y - yi) ** 2 - (v_e * (t1 + tau)) ** 2
@@ -91,6 +98,8 @@ def jacobian_2d(vars, taus: dict) -> np.ndarray:
 
     J = []
     for ch, tau in new_taus.items():
+        if tau > 0.0:
+            tau += erro_oleo + erro_osci
         xi, yi = ANTENNA_POSITIONS[ch][:2]
         df_dx = 2 * (x - xi)
         df_dy = 2 * (y - yi)
@@ -104,6 +113,8 @@ def tdoa_3d(vars, taus: dict) -> list:
 
     eqs = []
     for ch, tau in taus.items():
+        if tau > 0.0:
+            tau += erro_oleo + erro_osci
         xi = ANTENNA_POSITIONS[ch][0]
         yi = ANTENNA_POSITIONS[ch][1]
         zi = ANTENNA_POSITIONS[ch][2]
@@ -117,6 +128,8 @@ def jacobian_3d(vars, taus: dict) -> np.ndarray:
 
     J = []
     for ch, tau in taus.items():
+        if tau > 0.0:
+            tau += erro_oleo + erro_osci
         xi, yi, zi = ANTENNA_POSITIONS[ch][:3]
         df_dx = 2 * (x - xi)
         df_dy = 2 * (y - yi)
@@ -196,6 +209,8 @@ def tau_estim_gcc(pre_processing: Callable, gcc_func: Callable) -> Callable:
     def _estimate(exp: Experiment) -> dict:
         voltages = pre_processing(exp)
         ref_index = refs[exp.antenna]
+        erro_osci = 0.4e-9
+        erro_oleo = 0.2e-9
 
         v_ref = voltages[ref_index]
         ch_names = [f"CH{i + 1}" for i in range(len(voltages))]
@@ -276,7 +291,7 @@ def batch_tau_estimates(
 
 
 def solve_newton_raphson(
-    func, jacobian_func, initial_guess, taus, max_iter=50, tol=1e-9
+    exp, func, jacobian_func, initial_guess, taus, max_iter=100, tol=1e-9
 ):
     """
     Executes the Newton-Raphson iterations to find the source location.
@@ -298,7 +313,6 @@ def solve_newton_raphson(
         F = func(v, taus)
         J = jacobian_func(v, taus)
 
-        # Check convergence based on the residual norm
         if np.linalg.norm(F) < tol:
             # print(f"Converged in {i} iterations.")
             ier = True
@@ -309,13 +323,11 @@ def solve_newton_raphson(
         except np.linalg.LinAlgError:
             delta_v = np.linalg.pinv(J) @ F
 
-        # Optional: Add a step constraint to prevent divergent jumps in early iterations
-        if np.linalg.norm(delta_v) < tol:
-            break
-
         v = v - delta_v
 
-    warnings.warn("Warning: Maximum iterations reached without convergence.")
+    warnings.warn(
+        f"Maximum iterations reached without convergence. [{exp.antenna}, exp: {exp.index}]"
+    )
     return v, ier
 
 
@@ -325,13 +337,13 @@ def estimate_location(
     t_mid = np.sqrt(2) / v_e
     if mode == "2d":
         p0_2d = [1.0, 1.0, t_mid]
-        # sol, ier = solve_newton_raphson(tdoa_2d, jacobian_2d, p0_2d, taus)
-        sol, info, ier, msg = fsolve(tdoa_2d, p0_2d, full_output=True, args=(taus,))
+        sol, ier = solve_newton_raphson(exp, tdoa_2d, jacobian_2d, p0_2d, taus)
+        # sol, info, ier, msg = fsolve(tdoa_2d, p0_2d, full_output=True, args=(taus,))
         true_pos = SOURCE_POSITIONS[exp.antenna][:-1]
     else:
         p0_3d = [1.0, 1.0, 0.5, t_mid]
-        # sol, ier = solve_newton_raphson(tdoa_3d, jacobian_3d, p0_3d, taus)
-        sol, info, ier, msg = fsolve(tdoa_3d, p0_3d, full_output=True, args=(taus,))
+        sol, ier = solve_newton_raphson(exp, tdoa_3d, jacobian_3d, p0_3d, taus)
+        # sol, info, ier, msg = fsolve(tdoa_3d, p0_3d, full_output=True, args=(taus,))
         true_pos = SOURCE_POSITIONS[exp.antenna]
 
     refs = {"antena1": 0, "antena2": 1, "antena3": 2, "antena4": 3}
