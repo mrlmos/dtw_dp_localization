@@ -51,7 +51,7 @@ gcc_estimator = tau_estim_gcc(norm_zero_mean, gcc_phat)
 gcc_taus = batch_tau_estimates(experiments, gcc_estimator)
 
 # ---------- DTW-ENV ----------
-dtw_env_est = tau_estim_dtw(double_cum, curv_detection, dist)
+dtw_env_est = tau_estim_dtw(cum_energy_exp, curv_detection, dist, radius=30)
 dtwe_taus = batch_tau_estimates(experiments, dtw_env_est)
 
 # ---------- SFF-GCC ----------
@@ -71,8 +71,8 @@ sff_taus = batch_tau_estimates(experiments, sff_estimator)
 # ------------------------------
 estimators = {
     "DTW": dtw_taus,
-    # "GCC-PHAT": gcc_taus,
-    "DTW-novo": dtwe_taus,
+    "DTW-r13": dtwe_taus,
+    "GCC-PHAT": gcc_taus,
     "SFF-GCC": sff_taus,
 }
 

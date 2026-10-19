@@ -5,7 +5,7 @@ from icecream import ic
 
 
 def dist(x, y):
-    return (x - y) ** 2
+    return np.abs(x - y)
 
 
 def gen_cost_matrix(x1, x2, dist, radius=None, log=False):
