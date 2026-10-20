@@ -1,4 +1,5 @@
 import numpy as np
+from icecream import ic
 import matplotlib.pyplot as plt
 from scipy.fft import fft, ifft, fftshift
 from pd_localization.experiment_loader import load_experiments, get_experiment
@@ -90,25 +91,40 @@ def lpc_gcc(x, y, fs, p=8):
 
 DATA_PATH = "/home/murilo/dev/python/tcc/dados_dp/"
 experiments = load_experiments(DATA_PATH)
-exp = get_experiment(experiments, "antena1", 2)
+exp = get_experiment(experiments, "antena3", 3)
 
 fs = exp.sample_rate
 t = exp.time()
-voltages = norm_zero_mean(exp)
+voltages = np.array(norm_zero_mean(exp))
 p = 8
 
-erros = []
-for v in voltages:
-    a_k, _ = preditor_linear(v, p)
-    erro = lp_predict(v, a_k)
-    erros.append(erro)
+N = 2**10
+ffts = fftshift(fft(voltages, n=N))
+ffts_freq = fftshift(np.fft.fftfreq(N, d=1 / exp.sample_rate)) / 1e6
 
+ffts_db = 20 * np.log10(np.abs(ffts))
 fig, axs = plt.subplots(4, 1, sharex=True)
-for i in range(len(axs)):
-    axs[i].plot(t, erros[i], label="preditor")
-    axs[i].plot(t, voltages[i], lw=1, ls="--", label="real")
+for i in range(4):
+    axs[i].plot(ffts_freq, np.abs(ffts[i]), c=f"C{i}")
+    axs[i].set_xlabel("Frequência (MHz)")
+    axs[i].axvline(300, label=r"Início da Faixa UHF ($\geq$300MHz)", ls="--", c="k")
     axs[i].legend()
 
-fig.suptitle(f"order p = {p}")
-plt.tight_layout()
+plt.suptitle(f"Sample rate: {exp.sample_rate / 1e9}GHz")
 plt.show()
+
+# erros = []
+# for v in voltages:
+#     a_k, _ = preditor_linear(v, p)
+#     erro = lp_predict(v, a_k)
+#     erros.append(erro)
+
+# fig, axs = plt.subplots(4, 1, sharex=True)
+# for i in range(len(axs)):
+#     axs[i].plot(t, erros[i], label="preditor")
+#     axs[i].plot(t, voltages[i], lw=1, ls="--", label="real")
+#     axs[i].legend()
+#
+# fig.suptitle(f"order p = {p}")
+# plt.tight_layout()
+# plt.show()

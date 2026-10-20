@@ -69,13 +69,8 @@ class LocalizationResult:
 # TDOA EQUATIONS
 # ----------------------------------------
 
-erro_osci = 0.4e-9
-erro_oleo = 0.2e-9
-# erro_osci = 0.0
-# erro_oleo = 0.0
 
-
-def tdoa_2d(vars, taus: dict) -> list:
+def tdoa_2d(vars, taus: dict, erro: float = 0.0) -> list:
     x, y, t1 = vars
 
     # Remove o canal 4 (menos confiável)
@@ -84,7 +79,7 @@ def tdoa_2d(vars, taus: dict) -> list:
     eqs = []
     for ch, tau in new_taus.items():
         if tau > 0.0:
-            tau += erro_oleo + erro_osci
+            tau += erro
         xi = ANTENNA_POSITIONS[ch][0]
         yi = ANTENNA_POSITIONS[ch][1]
         eq = (x - xi) ** 2 + (y - yi) ** 2 - (v_e * (t1 + tau)) ** 2
@@ -92,14 +87,14 @@ def tdoa_2d(vars, taus: dict) -> list:
     return eqs
 
 
-def jacobian_2d(vars, taus: dict) -> np.ndarray:
+def jacobian_2d(vars, taus: dict, erro: float = 0.0) -> np.ndarray:
     x, y, t1 = vars
     new_taus = {ch: tau for ch, tau in taus.items() if ch != "CH4"}
 
     J = []
     for ch, tau in new_taus.items():
         if tau > 0.0:
-            tau += erro_oleo + erro_osci
+            tau += erro
         xi, yi = ANTENNA_POSITIONS[ch][:2]
         df_dx = 2 * (x - xi)
         df_dy = 2 * (y - yi)
@@ -108,13 +103,13 @@ def jacobian_2d(vars, taus: dict) -> np.ndarray:
     return np.array(J)
 
 
-def tdoa_3d(vars, taus: dict) -> list:
+def tdoa_3d(vars, taus: dict, erro: float = 0.0) -> list:
     x, y, z, t1 = vars
 
     eqs = []
     for ch, tau in taus.items():
         if tau > 0.0:
-            tau += erro_oleo + erro_osci
+            tau += erro
         xi = ANTENNA_POSITIONS[ch][0]
         yi = ANTENNA_POSITIONS[ch][1]
         zi = ANTENNA_POSITIONS[ch][2]
@@ -123,13 +118,13 @@ def tdoa_3d(vars, taus: dict) -> list:
     return eqs
 
 
-def jacobian_3d(vars, taus: dict) -> np.ndarray:
+def jacobian_3d(vars, taus: dict, erro: float = 0.0) -> np.ndarray:
     x, y, z, t1 = vars
 
     J = []
     for ch, tau in taus.items():
         if tau > 0.0:
-            tau += erro_oleo + erro_osci
+            tau += erro
         xi, yi, zi = ANTENNA_POSITIONS[ch][:3]
         df_dx = 2 * (x - xi)
         df_dy = 2 * (y - yi)
@@ -331,19 +326,25 @@ def solve_newton_raphson(
     return v, ier
 
 
+erro_osci = 0.4e-9
+
+
 def estimate_location(
     exp: Experiment, taus: dict, mode: str = "2d"
 ) -> LocalizationResult:
+    # TODO:
+    # 1 - Definir os erros (-e, 0, +e)
+    # 2 - Calcular as localizações para cada valor de erro
+    # 3 - Utilizar a médias de cada estimativa como resultado
+
     t_mid = np.sqrt(2) / v_e
     if mode == "2d":
         p0_2d = [1.0, 1.0, t_mid]
         sol, ier = solve_newton_raphson(exp, tdoa_2d, jacobian_2d, p0_2d, taus)
-        # sol, info, ier, msg = fsolve(tdoa_2d, p0_2d, full_output=True, args=(taus,))
         true_pos = SOURCE_POSITIONS[exp.antenna][:-1]
     else:
         p0_3d = [1.0, 1.0, 0.5, t_mid]
         sol, ier = solve_newton_raphson(exp, tdoa_3d, jacobian_3d, p0_3d, taus)
-        # sol, info, ier, msg = fsolve(tdoa_3d, p0_3d, full_output=True, args=(taus,))
         true_pos = SOURCE_POSITIONS[exp.antenna]
 
     refs = {"antena1": 0, "antena2": 1, "antena3": 2, "antena4": 3}
