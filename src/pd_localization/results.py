@@ -61,7 +61,7 @@ def remove_out_of_bounds(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def mean_estimates(df: pd.DataFrame) -> pd.DataFrame:
-    df = remove_out_of_bounds(df)
+    # df = remove_out_of_bounds(df)
     grouped = df.groupby("exp_antena")
     is_3d = False
 

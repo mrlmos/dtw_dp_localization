@@ -1,5 +1,6 @@
 import numpy as np
 import warnings
+from itertools import product
 from dataclasses import dataclass, field
 from collections.abc import Callable
 from scipy.optimize import fsolve
@@ -181,16 +182,6 @@ def tau_estim_dtw(
             path = backtracking(D)[::-1]
             linked = [pj for pi, pj in path if pi == ref_arrival]
             linked_diffs = np.abs(v_ref[ref_arrival] - v[linked])
-
-            # ---------- CONFIDENCE INTERVAL ----------
-            # diffs_sorted = np.argsort(linked_diffs)
-            # if len(diffs_sorted) == 1:
-            #     estimative = np.abs(diffs_sorted[0] + linked[0] - ref_arrival)
-            # elif len(diffs_sorted) < 4:
-            #     estimative = np.abs(np.mean(diffs_sorted) + linked[0] - ref_arrival)
-            # else:
-            #     estimative = np.abs(np.mean(diffs_sorted[:3]) + linked[0] - ref_arrival)
-
             estimative = np.abs(np.argmin(linked_diffs) + linked[0] - ref_arrival)
             taus[ch] = estimative / exp.sample_rate
         return taus
@@ -204,8 +195,6 @@ def tau_estim_gcc(pre_processing: Callable, gcc_func: Callable) -> Callable:
     def _estimate(exp: Experiment) -> dict:
         voltages = pre_processing(exp)
         ref_index = refs[exp.antenna]
-        erro_osci = 0.4e-9
-        erro_oleo = 0.2e-9
 
         v_ref = voltages[ref_index]
         ch_names = [f"CH{i + 1}" for i in range(len(voltages))]
@@ -326,25 +315,39 @@ def solve_newton_raphson(
     return v, ier
 
 
-erro_osci = 0.4e-9
+def expand_taus(taus, error=0.4e-9):
+    keys = list(taus.keys())
+    options = [[v - error, v, v + error] if v != 0 else [v] for v in taus.values()]
+    return [dict(zip(keys, combo)) for combo in product(*options)]
 
 
 def estimate_location(
-    exp: Experiment, taus: dict, mode: str = "2d"
+    exp: Experiment, taus: dict, mode: str = "2d", erro_osci=True
 ) -> LocalizationResult:
-    # TODO:
-    # 1 - Definir os erros (-e, 0, +e)
-    # 2 - Calcular as localizações para cada valor de erro
-    # 3 - Utilizar a médias de cada estimativa como resultado
-
-    t_mid = np.sqrt(2) / v_e
+    t_mid = 4.71e-9  # Como na tese de George
     if mode == "2d":
-        p0_2d = [1.0, 1.0, t_mid]
-        sol, ier = solve_newton_raphson(exp, tdoa_2d, jacobian_2d, p0_2d, taus)
+        if erro_osci:
+            variants = expand_taus(taus, 0.4e-9)
+        else:
+            variants = [taus]
+        solutions = np.full((len(variants), 3), np.nan)
+        for i, tau in enumerate(variants):
+            p0_2d = [1.0, 1.0, t_mid]
+            sol, ier = solve_newton_raphson(exp, tdoa_2d, jacobian_2d, p0_2d, tau)
+            solutions[i, :] = sol
+        sol = np.nanmean(solutions, axis=0)
         true_pos = SOURCE_POSITIONS[exp.antenna][:-1]
     else:
-        p0_3d = [1.0, 1.0, 0.5, t_mid]
-        sol, ier = solve_newton_raphson(exp, tdoa_3d, jacobian_3d, p0_3d, taus)
+        if erro_osci:
+            variants = expand_taus(taus, 0.4e-9)
+        else:
+            variants = [taus]
+        solutions = np.full((len(variants), 4), np.nan)
+        for i, tau in enumerate(variants):
+            p0_3d = [1.0, 1.0, 0.0, t_mid]
+            sol, ier = solve_newton_raphson(exp, tdoa_3d, jacobian_3d, p0_3d, tau)
+            solutions[i, :] = sol
+        sol = np.nanmean(solutions, axis=0)
         true_pos = SOURCE_POSITIONS[exp.antenna]
 
     refs = {"antena1": 0, "antena2": 1, "antena3": 2, "antena4": 3}
@@ -376,8 +379,9 @@ def batch_localization(
     experiments: list[Experiment],
     taus: list[dict],
     mode: str = "2d",
+    erro_osci=True,
 ) -> list[LocalizationResult]:
     results = []
     for exp, t in zip(experiments, taus):
-        results.append(estimate_location(exp, t, mode=mode))
+        results.append(estimate_location(exp, t, mode=mode, erro_osci=erro_osci))
     return results
