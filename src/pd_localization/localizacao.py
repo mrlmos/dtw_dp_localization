@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.random import uniform
 import warnings
 from itertools import product
 from dataclasses import dataclass, field
@@ -189,6 +190,45 @@ def tau_estim_dtw(
     return _estimate
 
 
+def tau_estim_pp() -> Callable:
+    refs = {"antena1": 0, "antena2": 1, "antena3": 2, "antena4": 3}
+
+    def norm(exp: Experiment):
+        chs = exp.ch_names
+        voltages = []
+        for ch in chs:
+            v = np.abs(exp.voltage(ch))
+            v /= np.max(v)
+            voltages.append(v)
+        return np.array(voltages)
+
+    def prim_pico(v: np.ndarray, limiar=0.1):
+        cond = np.zeros_like(v)
+        for i in range(len(v) - 1):
+            if v[i] > limiar and v[i] > v[i + 1]:
+                cond[i] = 1.0
+                break
+        return np.argmax(cond)
+
+    def _estimate(exp: Experiment) -> dict:
+        voltages = norm(exp)
+        ref_index = refs[exp.antenna]
+
+        v_ref = voltages[ref_index]
+        idx_ref = prim_pico(v_ref)
+        ch_names = [f"CH{i + 1}" for i in range(len(voltages))]
+        taus = {}
+        for i, (v, ch) in enumerate(zip(voltages, ch_names)):
+            if i == ref_index:
+                taus[ch] = 0.0
+                continue
+            estimative = prim_pico(v) - idx_ref
+            taus[ch] = estimative / exp.sample_rate
+        return taus
+
+    return _estimate
+
+
 def tau_estim_gcc(pre_processing: Callable, gcc_func: Callable) -> Callable:
     refs = {"antena1": 0, "antena2": 1, "antena3": 2, "antena4": 3}
 
@@ -275,7 +315,7 @@ def batch_tau_estimates(
 
 
 def solve_newton_raphson(
-    exp, func, jacobian_func, initial_guess, taus, max_iter=100, tol=1e-9
+    exp, func, jacobian_func, initial_guess, taus, max_iter=300, tol=1e-9
 ):
     """
     Executes the Newton-Raphson iterations to find the source location.
@@ -303,7 +343,7 @@ def solve_newton_raphson(
             return v, ier
 
         try:
-            delta_v = np.linalg.solve(J, F)
+            delta_v = np.linalg.solve(J.T @ J + , F)
         except np.linalg.LinAlgError:
             delta_v = np.linalg.pinv(J) @ F
 
@@ -332,9 +372,10 @@ def estimate_location(
             variants = [taus]
         solutions = np.full((len(variants), 3), np.nan)
         for i, tau in enumerate(variants):
-            p0_2d = [1.0, 1.0, t_mid]
+            p0_2d = [uniform(), uniform(), t_mid]
             sol, ier = solve_newton_raphson(exp, tdoa_2d, jacobian_2d, p0_2d, tau)
-            solutions[i, :] = sol
+            if ier and np.all(sol >= 0.0):
+                solutions[i, :] = sol
         sol = np.nanmean(solutions, axis=0)
         true_pos = SOURCE_POSITIONS[exp.antenna][:-1]
     else:
@@ -344,9 +385,10 @@ def estimate_location(
             variants = [taus]
         solutions = np.full((len(variants), 4), np.nan)
         for i, tau in enumerate(variants):
-            p0_3d = [1.0, 1.0, 0.0, t_mid]
+            p0_3d = [uniform(), uniform(), uniform(0, 0.5), t_mid]
             sol, ier = solve_newton_raphson(exp, tdoa_3d, jacobian_3d, p0_3d, tau)
-            solutions[i, :] = sol
+            if ier and np.all(sol >= 0.0):
+                solutions[i, :] = sol
         sol = np.nanmean(solutions, axis=0)
         true_pos = SOURCE_POSITIONS[exp.antenna]
 
