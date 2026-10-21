@@ -17,6 +17,7 @@ from pd_localization.localizacao import (
     tau_estim_gcc,
     true_taus,
     tau_estim_sff,
+    tau_estim_pp,
 )
 from pd_localization.results import (
     plot_location_scatter,
@@ -33,7 +34,7 @@ DATA_PATH = "/home/murilo/dev/python/tcc/dados_dp/"
 experiments = load_experiments(DATA_PATH)
 MODE = "3d"
 
-# # ---------- DTW ----------
+# ---------- DTW ----------
 # dtw_estimator = tau_estim_dtw(cum_energy_exp, curv_detection, dist, radius=13)
 # dtw_taus = batch_tau_estimates(experiments, dtw_estimator)
 # dtw_results = batch_localization(experiments, dtw_taus, mode=MODE)
@@ -48,13 +49,31 @@ MODE = "3d"
 # plt.show()
 
 # ---------- SFF-GCC ----------
-sff_estimator = tau_estim_sff(norm_zero_mean, sff_gcc)
-sff_taus = batch_tau_estimates(experiments, sff_estimator)
-sff_results = to_dataframe(batch_localization(experiments, sff_taus, mode=MODE))
-print("-----------------------------GCC-----------------------")
-pos_mean = mean_estimates(sff_results)
+# print("-----------------------------GCC-----------------------")
+# sff_estimator = tau_estim_sff(norm_zero_mean, sff_gcc)
+# sff_taus = batch_tau_estimates(experiments, sff_estimator)
+# sff_results = to_dataframe(batch_localization(experiments, sff_taus, mode=MODE))
+# pos_mean = mean_estimates(sff_results)
+# print(pos_mean)
+# plot_location_scatter(sff_results, only_mean_position=False)
+# plt.grid(True)
+# plt.show()
+#
+# plt.bar(pos_mean["exp_antena"], pos_mean["abs_error(m)"])
+# plt.xlabel("posições")
+# plt.ylabel("erro médio absoluto (m)")
+# plt.show()
+
+
+print("-----------------------------Primeiro Pico-----------------------")
+pp_estimator = tau_estim_pp()
+pp_taus = batch_tau_estimates(experiments, pp_estimator)
+pp_results = to_dataframe(
+    batch_localization(experiments, pp_taus, mode=MODE, erro_osci=False)
+)
+pos_mean = mean_estimates(pp_results)
 print(pos_mean)
-plot_location_scatter(sff_results, only_mean_position=False)
+plot_location_scatter(pp_results, only_mean_position=False)
 plt.grid(True)
 plt.show()
 
