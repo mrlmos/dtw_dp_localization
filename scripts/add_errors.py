@@ -31,7 +31,7 @@ def expand_taus(taus, error):
 
 variants = expand_taus(sff_taus, error)
 solutions = np.zeros((len(variants), 3))
-t_mid = 4.71e-9  # Como na tese de George
+t_mid = 4.71e-9
 for i, taus in enumerate(variants):
     p0_2d = [1.0, 1.0, t_mid]
     sol, ier = solve_newton_raphson(exp, tdoa_2d, jacobian_2d, p0_2d, taus)
@@ -40,16 +40,3 @@ for i, taus in enumerate(variants):
 sol = np.mean(solutions, axis=0)
 true_pos = SOURCE_POSITIONS[exp.antenna][:-1]
 ic(sol)
-
-# ----------------
-variants = [sff_taus]
-solutions = np.zeros((len(variants), 3))
-t_mid = 4.71e-9  # Como na tese de George
-for i, taus in enumerate(variants):
-    p0_2d = [1.0, 1.0, t_mid]
-    sol, ier = solve_newton_raphson(exp, tdoa_2d, jacobian_2d, p0_2d, taus)
-    solutions[i, :] = sol
-
-sol = np.mean(solutions, axis=0)
-true_pos = SOURCE_POSITIONS[exp.antenna][:-1]
-ic(sol, SOURCE_POSITIONS)

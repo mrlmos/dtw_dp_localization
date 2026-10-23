@@ -343,7 +343,7 @@ def solve_newton_raphson(
             return v, ier
 
         try:
-            delta_v = np.linalg.solve(J.T @ J + , F)
+            delta_v = np.linalg.solve(J, F)
         except np.linalg.LinAlgError:
             delta_v = np.linalg.pinv(J) @ F
 
