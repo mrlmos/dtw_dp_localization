@@ -355,7 +355,7 @@ def solve_newton_raphson(
     return v, ier
 
 
-def expand_taus(taus, error=0.4e-9):
+def expand_taus(taus: dict, error=0.4e-9) -> list[dict]:
     keys = list(taus.keys())
     options = [[v - error, v, v + error] if v != 0 else [v] for v in taus.values()]
     return [dict(zip(keys, combo)) for combo in product(*options)]
@@ -370,25 +370,32 @@ def estimate_location(
             variants = expand_taus(taus, 0.4e-9)
         else:
             variants = [taus]
+
         solutions = np.full((len(variants), 3), np.nan)
         for i, tau in enumerate(variants):
             p0_2d = [uniform(), uniform(), t_mid]
             sol, ier = solve_newton_raphson(exp, tdoa_2d, jacobian_2d, p0_2d, tau)
+
             if ier and np.all(sol >= 0.0):
                 solutions[i, :] = sol
+
         sol = np.nanmean(solutions, axis=0)
         true_pos = SOURCE_POSITIONS[exp.antenna][:-1]
+
     else:
         if erro_osci:
             variants = expand_taus(taus, 0.4e-9)
         else:
             variants = [taus]
+
         solutions = np.full((len(variants), 4), np.nan)
         for i, tau in enumerate(variants):
             p0_3d = [uniform(), uniform(), uniform(0, 0.5), t_mid]
             sol, ier = solve_newton_raphson(exp, tdoa_3d, jacobian_3d, p0_3d, tau)
+
             if ier and np.all(sol >= 0.0):
                 solutions[i, :] = sol
+
         sol = np.nanmean(solutions, axis=0)
         true_pos = SOURCE_POSITIONS[exp.antenna]
 

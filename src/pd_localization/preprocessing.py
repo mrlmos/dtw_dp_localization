@@ -195,6 +195,7 @@ def curv_detection(x: np.ndarray) -> int:
     kf = ddv / ((1 + dv**2) ** (3 / 2))
     kf /= np.max(kf)
     return np.argmax(kf >= 0.3)
+    # return np.argmax(kf)
 
 
 def zero_virtual(v: np.ndarray) -> int:
