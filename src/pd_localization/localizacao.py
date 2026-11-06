@@ -373,7 +373,8 @@ def estimate_location(
 
         solutions = np.full((len(variants), 3), np.nan)
         for i, tau in enumerate(variants):
-            p0_2d = [uniform(), uniform(), t_mid]
+            # p0_2d = [uniform(), uniform(), t_mid]
+            p0_2d = [0.0, 0.0, t_mid]
             sol, ier = solve_newton_raphson(exp, tdoa_2d, jacobian_2d, p0_2d, tau)
 
             if ier and np.all(sol >= 0.0):
@@ -390,7 +391,7 @@ def estimate_location(
 
         solutions = np.full((len(variants), 4), np.nan)
         for i, tau in enumerate(variants):
-            p0_3d = [uniform(), uniform(), uniform(0, 0.5), t_mid]
+            p0_3d = [0.0, 0.0, 0.5, t_mid]
             sol, ier = solve_newton_raphson(exp, tdoa_3d, jacobian_3d, p0_3d, tau)
 
             if ier and np.all(sol >= 0.0):
