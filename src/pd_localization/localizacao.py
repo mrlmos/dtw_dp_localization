@@ -315,7 +315,7 @@ def batch_tau_estimates(
 
 
 def solve_newton_raphson(
-    exp, func, jacobian_func, initial_guess, taus, lam=0.1, max_iter=100, tol=1e-5
+    exp, func, jacobian_func, initial_guess, taus, lam=0.01, max_iter=25, tol=1e-5
 ):
     v = np.array(initial_guess, dtype=float)
     dim = len(v)
@@ -328,6 +328,8 @@ def solve_newton_raphson(
         J = np.array(jacobian_func(v, taus))
 
         if np.linalg.norm(F) < tol:
+            if not (0.0 <= v[0] <= 2.0 and 0.0 <= v[1] <= 2.0 and (dim == 3 or 0.0 <= v[2] <= 1.0)):
+                return v, False
             return v, True
 
         J_scaled = J * scale[None, :]
@@ -344,13 +346,12 @@ def solve_newton_raphson(
 
         delta_v = delta_v_scaled * scale
 
-        if np.linalg.norm(delta_v_scaled[: dim - 1]) < 1e-7:
+        if np.linalg.norm(delta_v_scaled[: dim - 1]) < 1e-4:
+            if not (0.0 <= v[0] <= 2.0 and 0.0 <= v[1] <= 2.0 and (dim == 3 or 0.0 <= v[2] <= 1.0)):
+                return v, False
             return v, True
 
         v = v - delta_v
-
-    if np.all(v >= 0.0):
-        return v, True
 
     warnings.warn(
         f"Maximum iterations reached without convergence. [{exp.antenna}, exp: {exp.index}]"
