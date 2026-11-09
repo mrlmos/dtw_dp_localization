@@ -315,89 +315,45 @@ def batch_tau_estimates(
 
 
 def solve_newton_raphson(
-    exp,
-    func,
-    jacobian_func,
-    initial_guess,
-    taus,
-    lam: float = 0.1,
-    max_iter: int = 150,
-    tol: float = 1e-5,
-    tol_step: float = 1e-7,
+    exp, func, jacobian_func, initial_guess, taus, lam=0.1, max_iter=100, tol=1e-5
 ):
-    """
-    Executes regularized Newton-Raphson (Levenberg-Marquardt style) iterations
-    to find the source location.
-
-    ---------------------------------------------------------------------------
-    ```
-    # Example Usage:
-    guess_2d = [0.0, 0.0, 0.0]  # [x, y, t1]
-    result_2d, ier = solve_newton_raphson(exp, tdoa_2d, jacobian_2d, guess_2d, sff_taus)
-
-    guess_3d = [0.0, 0.0, 0.0, 0.0]  # [x, y, z, t1]
-    result_3d, ier = solve_newton_raphson(exp, tdoa_3d, jacobian_3d, guess_3d, sff_taus)
-    ```
-    """
-    ier = False
     v = np.array(initial_guess, dtype=float)
-    dim = len(v)
-
-    # Scaling vector so that time parameter t1 is scaled by v_e (matching spatial coordinates in meters)
-    scale = np.ones(dim)
-    scale[-1] = 1.0 / v_e
 
     for i in range(max_iter):
         F = np.array(func(v, taus))
         J = np.array(jacobian_func(v, taus))
 
         if np.linalg.norm(F) < tol:
-            ier = True
-            return v, ier
+            return v, True
 
-        if lam > 0.0:
-            J_scaled = J * scale[None, :]
-            JTJ = J_scaled.T @ J_scaled
-            JTF = J_scaled.T @ F
+        JTJ = J.T @ J
+        JTF = J.T @ F
 
-            diag_JTJ = np.diag(np.diag(JTJ))
-            reg_matrix = JTJ + lam * (diag_JTJ + 1e-6 * np.eye(dim))
+        # Regularização proporcional à diagonal de JTJ
+        diag_JTJ = np.diag(np.diag(JTJ))
+        reg_matrix = JTJ + lam * (diag_JTJ + 1e-6 * np.eye(4))
 
-            try:
-                delta_v_scaled = np.linalg.solve(reg_matrix, JTF)
-            except np.linalg.LinAlgError:
-                delta_v_scaled = np.linalg.pinv(reg_matrix) @ JTF
+        try:
+            delta_v = np.linalg.solve(reg_matrix, JTF)
+        except np.linalg.LinAlgError:
+            delta_v = np.linalg.pinv(reg_matrix) @ JTF
 
-            delta_v = delta_v_scaled * scale
-        else:
-            try:
-                delta_v = np.linalg.solve(J, F)
-            except np.linalg.LinAlgError:
-                delta_v = np.linalg.pinv(J) @ F
-
-        if np.linalg.norm(delta_v[: dim - 1]) < tol_step:
-            ier = True
-            return v, ier
+        # Critério de parada pelo tamanho do passo (já que ||F|| nunca zera com ruído)
+        if np.linalg.norm(delta_v) < 1e-7:
+            return v, True
 
         v = v - delta_v
 
-        # Bounds clipping to tank dimensions
-        v[0] = np.clip(v[0], 0.0, 2.0)
-        v[1] = np.clip(v[1], 0.0, 2.0)
-        if dim == 4:
-            v[2] = np.clip(v[2], 0.0, 1.0)
-            v[3] = max(v[3], 0.0)
-        elif dim == 3:
-            v[2] = max(v[2], 0.0)
-
-    if np.all(v >= 0.0):
-        ier = True
-        return v, ier
+        # Mantém as variáveis dentro dos limites físicos do tanque
+        v[0] = np.clip(v[0], 0.0, 2.0)  # x
+        v[1] = np.clip(v[1], 0.0, 2.0)  # y
+        v[2] = np.clip(v[2], 0.0, 1.0)  # z
+        v[3] = max(v[3], 0.0)           # t1
 
     warnings.warn(
         f"Maximum iterations reached without convergence. [{exp.antenna}, exp: {exp.index}]"
     )
-    return v, ier
+    return v, False
 
 
 def expand_taus(taus: dict, error=0.4e-9) -> list[dict]:
