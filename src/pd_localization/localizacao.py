@@ -318,6 +318,10 @@ def solve_newton_raphson(
     exp, func, jacobian_func, initial_guess, taus, lam=0.1, max_iter=100, tol=1e-5
 ):
     v = np.array(initial_guess, dtype=float)
+    dim = len(v)
+
+    scale = np.ones(dim)
+    scale[-1] = 1.0 / v_e
 
     for i in range(max_iter):
         F = np.array(func(v, taus))
@@ -326,29 +330,27 @@ def solve_newton_raphson(
         if np.linalg.norm(F) < tol:
             return v, True
 
-        JTJ = J.T @ J
-        JTF = J.T @ F
+        J_scaled = J * scale[None, :]
+        JTJ = J_scaled.T @ J_scaled
+        JTF = J_scaled.T @ F
 
-        # Regularização proporcional à diagonal de JTJ
         diag_JTJ = np.diag(np.diag(JTJ))
-        reg_matrix = JTJ + lam * (diag_JTJ + 1e-6 * np.eye(4))
+        reg_matrix = JTJ + lam * diag_JTJ
 
         try:
-            delta_v = np.linalg.solve(reg_matrix, JTF)
+            delta_v_scaled = np.linalg.solve(reg_matrix, JTF)
         except np.linalg.LinAlgError:
-            delta_v = np.linalg.pinv(reg_matrix) @ JTF
+            delta_v_scaled = np.linalg.pinv(reg_matrix) @ JTF
 
-        # Critério de parada pelo tamanho do passo (já que ||F|| nunca zera com ruído)
-        if np.linalg.norm(delta_v) < 1e-7:
+        delta_v = delta_v_scaled * scale
+
+        if np.linalg.norm(delta_v_scaled[: dim - 1]) < 1e-7:
             return v, True
 
         v = v - delta_v
 
-        # Mantém as variáveis dentro dos limites físicos do tanque
-        v[0] = np.clip(v[0], 0.0, 2.0)  # x
-        v[1] = np.clip(v[1], 0.0, 2.0)  # y
-        v[2] = np.clip(v[2], 0.0, 1.0)  # z
-        v[3] = max(v[3], 0.0)           # t1
+    if np.all(v >= 0.0):
+        return v, True
 
     warnings.warn(
         f"Maximum iterations reached without convergence. [{exp.antenna}, exp: {exp.index}]"
