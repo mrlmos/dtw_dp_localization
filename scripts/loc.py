@@ -29,7 +29,7 @@ experiments = load_experiments(DATA_PATH)
 MODE = "3d"
 
 # ---------- DTW ----------
-dtw_estimator = tau_estim_dtw(cum_energy_exp, curv_detection, dist, radius=14)
+dtw_estimator = tau_estim_dtw(cum_energy_exp, curv_detection, dist, radius=13)
 start = time.time()
 dtw_taus = batch_tau_estimates(experiments, dtw_estimator)
 dtw_results = batch_localization(experiments, dtw_taus, mode=MODE)
@@ -39,8 +39,8 @@ end = time.time()
 print(f"Excecution time: {end - start}s\n")
 tempo_dtw = end - start
 print(pos_mean_dtw)
-# plot_location_scatter(dtw_results)
-# plt.show()
+plot_location_scatter(dtw_results)
+plt.show()
 # plt.bar(pos_mean["exp_antena"], pos_mean["abs_error(m)"])
 # plt.xlabel("posições")
 # plt.ylabel("erro médio absoluto (m)")

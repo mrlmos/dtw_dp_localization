@@ -328,8 +328,6 @@ def solve_newton_raphson(
         J = np.array(jacobian_func(v, taus))
 
         if np.linalg.norm(F) < tol:
-            if not (0.0 <= v[0] <= 2.0 and 0.0 <= v[1] <= 2.0 and (dim == 3 or 0.0 <= v[2] <= 1.0)):
-                return v, False
             return v, True
 
         J_scaled = J * scale[None, :]
@@ -347,15 +345,13 @@ def solve_newton_raphson(
         delta_v = delta_v_scaled * scale
 
         if np.linalg.norm(delta_v_scaled[: dim - 1]) < 1e-4:
-            if not (0.0 <= v[0] <= 2.0 and 0.0 <= v[1] <= 2.0 and (dim == 3 or 0.0 <= v[2] <= 1.0)):
-                return v, False
             return v, True
 
         v = v - delta_v
 
-    warnings.warn(
-        f"Maximum iterations reached without convergence. [{exp.antenna}, exp: {exp.index}]"
-    )
+    # warnings.warn(
+    #     f"Maximum iterations reached without convergence. [{exp.antenna}, exp: {exp.index}]"
+    # )
     return v, False
 
 
@@ -375,33 +371,75 @@ def estimate_location(
         else:
             variants = [taus]
 
-        solutions = np.full((len(variants), 3), np.nan)
+        solutions = []
         for i, tau in enumerate(variants):
             # p0_2d = [uniform(), uniform(), t_mid]
             p0_2d = [0.0, 0.0, t_mid]
             sol, ier = solve_newton_raphson(exp, tdoa_2d, jacobian_2d, p0_2d, tau)
 
-            if ier and np.all(sol >= 0.0):
-                solutions[i, :] = sol
+            if ier:
+                solutions.append(sol)
 
-        sol = np.nanmean(solutions, axis=0)
+        if len(solutions) == 0:
+            sol_final = np.full(3, np.nan)
+            ier = False
+        else:
+            sols = np.array(solutions)
+            sol_mean = np.mean(sols, axis=0)
+            in_area = 0.0 <= sol_mean[0] <= 2.0 and 0.0 <= sol_mean[1] <= 2.0
+            if in_area:
+                sol_final = sol_mean
+                ier = True
+            else:
+                mask = np.all(sols >= 0.0, axis=1)
+                pos_sols = sols[mask]
+                if len(sols) > 0:
+                    sol_final = np.mean(pos_sols, axis=0)
+                    ier = True
+                else:
+                    sol_final = sol_mean
+                    ier = False
+
         true_pos = SOURCE_POSITIONS[exp.antenna][:-1]
 
+    # -----------------3D -------------------
     else:
         if erro_osci:
             variants = expand_taus(taus, 0.4e-9)
         else:
             variants = [taus]
 
-        solutions = np.full((len(variants), 4), np.nan)
-        for i, tau in enumerate(variants):
+        solutions = []
+        for tau in variants:
             p0_3d = [0.0, 0.0, 0.5, t_mid]
             sol, ier = solve_newton_raphson(exp, tdoa_3d, jacobian_3d, p0_3d, tau)
+            if ier:
+                solutions.append(sol)
 
-            if ier and np.all(sol >= 0.0):
-                solutions[i, :] = sol
+        if len(solutions) == 0:
+            sol_final = np.full(4, np.nan)
+            ier = False
+        else:
+            solutions = np.array(solutions)
+            sol_mean = np.mean(solutions, axis=0)
+            in_area = (
+                0.0 <= sol_mean[0] <= 2.0
+                and 0.0 <= sol_mean[1] <= 2.0
+                and 0.0 <= sol_mean[2] <= 1.0
+            )
+            if in_area:
+                sol_final = sol_mean
+                ier = True
+            else:
+                pos_mask = np.all(solutions >= 0.0, axis=1)
+                pos_sols = solutions[pos_mask]
+                if len(pos_sols) > 0:
+                    sol_final = np.mean(pos_sols, axis=0)
+                    ier = True
+                else:
+                    sol_final = sol_mean
+                    ier = False
 
-        sol = np.nanmean(solutions, axis=0)
         true_pos = SOURCE_POSITIONS[exp.antenna]
 
     refs = {"antena1": 0, "antena2": 1, "antena3": 2, "antena4": 3}
@@ -420,10 +458,10 @@ def estimate_location(
         exp_index=exp.index,
         taus=taus,
         mode=mode,
-        position_estimated=sol[:-1],
-        t1_estimated=sol[-1],
+        position_estimated=sol_final[:-1],
+        t1_estimated=sol_final[-1],
         position_true=true_pos,
-        converged=bool(ier == 1),
+        converged=ier,
         taus_estimated_samples=taus_estimated_samples,
         taus_true_samples=taus_true_samples,
     )

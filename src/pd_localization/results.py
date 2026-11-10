@@ -60,8 +60,10 @@ def remove_out_of_bounds(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def mean_estimates(df: pd.DataFrame) -> pd.DataFrame:
+def mean_estimates(data: pd.DataFrame) -> pd.DataFrame:
     # df = remove_out_of_bounds(df)
+    df = data.copy()
+    # df = data[data["converged"]].copy()
     grouped = df.groupby("exp_antena")
     is_3d = False
 
