@@ -385,20 +385,8 @@ def estimate_location(
             ier = False
         else:
             sols = np.array(solutions)
-            sol_mean = np.mean(sols, axis=0)
-            in_area = 0.0 <= sol_mean[0] <= 2.0 and 0.0 <= sol_mean[1] <= 2.0
-            if in_area:
-                sol_final = sol_mean
-                ier = True
-            else:
-                mask = np.all(sols >= 0.0, axis=1)
-                pos_sols = sols[mask]
-                if len(sols) > 0:
-                    sol_final = np.mean(pos_sols, axis=0)
-                    ier = True
-                else:
-                    sol_final = sol_mean
-                    ier = False
+            sol_final = np.mean(sols, axis=0)
+            ier = True
 
         true_pos = SOURCE_POSITIONS[exp.antenna][:-1]
 
@@ -411,7 +399,12 @@ def estimate_location(
 
         solutions = []
         for tau in variants:
-            p0_3d = [0.0, 0.0, 0.5, t_mid]
+            p0_2d = [0.0, 0.0, t_mid]
+            sol_2d, ier_2d = solve_newton_raphson(exp, tdoa_2d, jacobian_2d, p0_2d, tau)
+            if ier_2d:
+                p0_3d = [sol_2d[0], sol_2d[1], 0.5, sol_2d[2]]
+            else:
+                p0_3d = [0.0, 0.0, 0.5, t_mid]
             sol, ier = solve_newton_raphson(exp, tdoa_3d, jacobian_3d, p0_3d, tau)
             if ier:
                 solutions.append(sol)
@@ -421,24 +414,8 @@ def estimate_location(
             ier = False
         else:
             solutions = np.array(solutions)
-            sol_mean = np.mean(solutions, axis=0)
-            in_area = (
-                0.0 <= sol_mean[0] <= 2.0
-                and 0.0 <= sol_mean[1] <= 2.0
-                and 0.0 <= sol_mean[2] <= 1.0
-            )
-            if in_area:
-                sol_final = sol_mean
-                ier = True
-            else:
-                pos_mask = np.all(solutions >= 0.0, axis=1)
-                pos_sols = solutions[pos_mask]
-                if len(pos_sols) > 0:
-                    sol_final = np.mean(pos_sols, axis=0)
-                    ier = True
-                else:
-                    sol_final = sol_mean
-                    ier = False
+            sol_final = np.mean(solutions, axis=0)
+            ier = True
 
         true_pos = SOURCE_POSITIONS[exp.antenna]
 
