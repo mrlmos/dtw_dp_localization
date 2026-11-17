@@ -357,7 +357,7 @@ def run_benchmark(n_runs: int = N_RUNS) -> Tuple[Dict[str, pd.DataFrame], pd.Dat
 def export_to_excel(
     scenario_dfs: Dict[str, pd.DataFrame],
     master_df: pd.DataFrame,
-    filepath: str = "result_sheets/synthetic_benchmark2.xlsx",
+    filepath: str = "result_sheets/synthetic_benchmark_artigo.xlsx",
 ):
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     with pd.ExcelWriter(filepath, engine="openpyxl") as writer:
@@ -374,7 +374,7 @@ def export_to_excel(
 
 def export_to_markdown(
     master_df: pd.DataFrame,
-    filepath: str = "result_sheets/synthetic_benchmark_summary2.md",
+    filepath: str = "result_sheets/synthetic_benchmark_summary_artigo.md",
 ):
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     lines = []

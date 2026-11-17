@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from numpy.random import uniform
 import warnings
 from itertools import product
@@ -6,9 +7,15 @@ from dataclasses import dataclass, field
 from collections.abc import Callable
 from scipy.optimize import fsolve
 
-from pd_localization.gcc import sff_gcc
+from pd_localization.gcc import sff_gcc, gcc_phat
 
 from .dtw import gen_cost_matrix, backtracking
+from .preprocessing import (
+    cum_energy_exp,
+    norm_zero_mean,
+    curv_detection,
+    energy_criterion,
+)
 from .experiment_loader import (
     Experiment,
     ANTENNA_POSITIONS,
@@ -29,6 +36,10 @@ TDOA_SAMPLES = {
     "antena3": [12.02122, 7.33526, 7.33526],
     "antena4": [7.47879, 11.70964, 7.16611],
 }
+
+
+def dist(x, y):
+    return np.abs(x - y)
 
 
 @dataclass
@@ -454,3 +465,6 @@ def batch_localization(
     for exp, t in zip(experiments, taus):
         results.append(estimate_location(exp, t, mode=mode, erro_osci=erro_osci))
     return results
+
+
+# ------------------- GERALZAO ----------------

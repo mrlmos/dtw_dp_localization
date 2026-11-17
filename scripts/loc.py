@@ -39,11 +39,7 @@ end = time.time()
 print(f"Excecution time: {end - start}s\n")
 tempo_dtw = end - start
 print(pos_mean_dtw)
-plot_location_scatter(dtw_results)
-plt.show()
-# plt.bar(pos_mean["exp_antena"], pos_mean["abs_error(m)"])
-# plt.xlabel("posições")
-# plt.ylabel("erro médio absoluto (m)")
+# plot_location_scatter(dtw_results)
 # plt.show()
 
 print("-----------------------------GCC-----------------------")
@@ -68,7 +64,12 @@ print(pos_mean_gcc)
 
 # ---------- STATS ----------
 
-width = 0.4
+estimadores = {
+    "DTW": pos_mean_dtw,
+    "SSF-GCC": pos_mean_gcc,
+}
+
+width = 0.2
 x = np.arange(len(pos_mean_dtw))
 
 plt.rcParams["font.size"] = 12
