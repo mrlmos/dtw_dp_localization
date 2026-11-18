@@ -8,7 +8,9 @@ def confidence_interval(std, N=100):
 
 
 N = 1000
-filename = "/home/murilo/dev/python/tcc/dtw/result_sheets/synthetic_benchmark2.csv"
+filename = (
+    "/home/murilo/dev/python/tcc/dtw/result_sheets/synthetic_benchmark_artigo.csv"
+)
 
 df = pd.read_csv(filename, decimal=",")
 results = df[
@@ -46,7 +48,7 @@ m_list = [
     # "GCC-HT",
     "PHAT",
     # "GCC-ROTH",
-    "SCOT",
+    # "SCOT",
 ]
 
 results["Scenario_ID"] = pd.Categorical(

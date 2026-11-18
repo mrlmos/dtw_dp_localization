@@ -7,7 +7,7 @@ import pandas as pd
 from pd_localization.test_signals import generate_pd
 from pd_localization.dtw import backtracking
 from pd_localization.preprocessing import curv_detection, min_max_norm
-from pd_localization.gcc import gcc_ht, gcc_phat, gcc_roth, gcc_scot
+from pd_localization.gcc import gcc_ht, gcc_phat, sff_gcc, gcc_ps
 
 ch_names = [f"CH{i + 1}" for i in range(4)]
 
@@ -38,7 +38,7 @@ N_RUNS = 1000
 
 
 # ---------------------------------------------------------
-# High-Performance Fast DTW & Akaike
+# High-Performance Fast DTW
 # ---------------------------------------------------------
 
 
@@ -60,35 +60,6 @@ def fast_gen_cost_matrix(x1: np.ndarray, x2: np.ndarray) -> np.ndarray:
             D_curr[j] = dist_row[j - 1] + min(D_prev[j - 1], D_prev[j], D_curr[j - 1])
 
     return D[1:, 1:]
-
-
-def akaike_info(signals: List[np.ndarray]) -> List[np.ndarray]:
-    """
-    Vectorized Akaike Information Criterion (AIC) using cumulative sum variance updates.
-    ~50x speedup over iterative np.std calculation.
-    """
-    energies = []
-    for s in signals:
-        n = len(s)
-        k = np.arange(1, n)
-        cum1 = np.cumsum(s)
-        cum2 = np.cumsum(s**2)
-
-        mean1 = cum1[: n - 1] / k
-        var1 = (cum2[: n - 1] / k) - mean1**2
-        var1 = np.maximum(var1, 1e-9)
-
-        cnt2 = n - k
-        mean2 = (cum1[-1] - cum1[: n - 1]) / cnt2
-        var2 = ((cum2[-1] - cum2[: n - 1]) / cnt2) - mean2**2
-        var2 = np.maximum(var2, 1e-9)
-
-        eic = np.zeros(n)
-        eic[1:-1] = k[:-1] * np.log(var1[:-1]) + cnt2[:-1] * np.log(var2[:-1])
-        eic[0] = eic[1]
-        eic[-1] = eic[-2]
-        energies.append(min_max_norm(eic))
-    return energies
 
 
 # ---------------------------------------------------------
@@ -123,6 +94,35 @@ def energy_criterion(signals: List[np.ndarray]) -> List[np.ndarray]:
         for k in range(len(v)):
             ec[k] = np.sum(v[:k]) - k * px
         energies.append(min_max_norm(ec))
+    return energies
+
+
+def akaike_info(signals: List[np.ndarray]) -> List[np.ndarray]:
+    """
+    Vectorized Akaike Information Criterion (AIC) using cumulative sum variance updates.
+    ~50x speedup over iterative np.std calculation.
+    """
+    energies = []
+    for s in signals:
+        n = len(s)
+        k = np.arange(1, n)
+        cum1 = np.cumsum(s)
+        cum2 = np.cumsum(s**2)
+
+        mean1 = cum1[: n - 1] / k
+        var1 = (cum2[: n - 1] / k) - mean1**2
+        var1 = np.maximum(var1, 1e-9)
+
+        cnt2 = n - k
+        mean2 = (cum1[-1] - cum1[: n - 1]) / cnt2
+        var2 = ((cum2[-1] - cum2[: n - 1]) / cnt2) - mean2**2
+        var2 = np.maximum(var2, 1e-9)
+
+        eic = np.zeros(n)
+        eic[1:-1] = k[:-1] * np.log(var1[:-1]) + cnt2[:-1] * np.log(var2[:-1])
+        eic[0] = eic[1]
+        eic[-1] = eic[-2]
+        energies.append(min_max_norm(eic))
     return energies
 
 
@@ -188,21 +188,42 @@ def estimate_taus_gcc(
     return taus
 
 
+def estimate_taus_sff(
+    signals: List[np.ndarray],
+    normalization: Callable[[List[np.ndarray]], List[np.ndarray]] = norm_zero_mean,
+    gcc_func: Callable[[np.ndarray, np.ndarray], np.ndarray] = sff_gcc,
+) -> np.ndarray:
+    voltages = normalization(signals)
+    v_ref = voltages[0]
+    taus = np.zeros(4)
+    taus[0] = 0.0
+    for i in range(1, 4):
+        cross_corr = gcc_func(v_ref, voltages[i])
+        ests = np.argmax(cross_corr, axis=-1) - len(v_ref) + 1
+        cond = np.abs(ests) < 50
+        if np.any(cond):
+            estimative = np.abs(np.mean(ests, where=cond))
+        else:
+            estimative = np.abs(np.mean(ests))
+        taus[i] = estimative
+    return taus
+
+
 # ---------------------------------------------------------
 # Benchmark Runner & Evaluation
 # ---------------------------------------------------------
 
 METHODS: Dict[str, Callable[[List[np.ndarray]], np.ndarray]] = {
-    "DTW": estimate_taus_dtw,
+    # "DTW": estimate_taus_dtw,
+    "GCC-PS": lambda s: estimate_taus_gcc(s, gcc_func=gcc_ps),
     "GCC-PHAT": lambda s: estimate_taus_gcc(s, gcc_func=gcc_phat),
-    "GCC-ROTH": lambda s: estimate_taus_gcc(s, gcc_func=gcc_roth),
-    "GCC-SCOT": lambda s: estimate_taus_gcc(s, gcc_func=gcc_scot),
-    "GCC-HT": lambda s: estimate_taus_gcc(s, gcc_func=gcc_ht),
+    # "GCC-HT": lambda s: estimate_taus_gcc(s, gcc_func=gcc_ht),
+    # "SFF-GCC": estimate_taus_sff,
+    "Akaike": lambda s: estimate_taus_energy(s, np.argmin, akaike_info),
     "CumEnergy + Curv": lambda s: estimate_taus_energy(s, curv_detection, cum_energy),
     "EnergyCrit + Argmin": lambda s: estimate_taus_energy(
         s, np.argmin, energy_criterion
     ),
-    "Akaike + Argmin": lambda s: estimate_taus_energy(s, np.argmin, akaike_info),
 }
 
 TEST_SCENARIOS = [
@@ -357,7 +378,7 @@ def run_benchmark(n_runs: int = N_RUNS) -> Tuple[Dict[str, pd.DataFrame], pd.Dat
 def export_to_excel(
     scenario_dfs: Dict[str, pd.DataFrame],
     master_df: pd.DataFrame,
-    filepath: str = "result_sheets/synthetic_benchmark_artigo.xlsx",
+    filepath: str = "result_sheets/benchmark_artigo.xlsx",
 ):
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     with pd.ExcelWriter(filepath, engine="openpyxl") as writer:
@@ -374,7 +395,7 @@ def export_to_excel(
 
 def export_to_markdown(
     master_df: pd.DataFrame,
-    filepath: str = "result_sheets/synthetic_benchmark_summary_artigo.md",
+    filepath: str = "result_sheets/benchmark_summary_artigo.md",
 ):
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     lines = []
@@ -395,10 +416,10 @@ def export_to_markdown(
     for scen in TEST_SCENARIOS:
         scen_id = scen["id"]
         scen_name = scen["name"]
-        desc = scen["description"]
+        # desc = scen["description"]
 
         lines.append(f"### {scen_name}\n")
-        lines.append(f"*{desc}*\n")
+        # lines.append(f"*{desc}*\n")
 
         sub_df = master_df[master_df["Scenario_ID"] == scen_id].copy()
         sub_df.sort_values(by="Overall_MAE (samples)", inplace=True)

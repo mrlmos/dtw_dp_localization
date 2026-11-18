@@ -10,7 +10,7 @@ def gcc_phat(x: np.ndarray, y: np.ndarray):
     spec2 = np.fft.fft(y, n=fftlen)
 
     spec12 = spec1 * np.conj(spec2)
-    phat_fft = spec12 / np.abs(spec12)
+    phat_fft = spec12 / (np.abs(spec12) + 1e-12)
 
     gcc = np.fft.ifft(phat_fft, n=fftlen).real
     return np.fft.fftshift(gcc)
@@ -26,8 +26,9 @@ def gcc_ps(x: np.ndarray, y: np.ndarray):
     spec11 = spec1 * np.conj(spec1)
     spec22 = spec2 * np.conj(spec2)
     spec12 = spec1 * np.conj(spec2)
+    reg = 0.1 * np.mean(np.abs(spec12))
 
-    psi = (np.sqrt(spec11 * spec22) - np.abs(spec12)) / (np.abs(spec12) ** p)
+    psi = (np.sqrt(spec11 * spec22) - np.abs(spec12)) / (np.abs(spec12) ** p + reg)
     phat_fft = spec12 * np.abs(psi)
     gcc = np.fft.ifft(phat_fft, n=fftlen).real
     return np.fft.fftshift(gcc)
